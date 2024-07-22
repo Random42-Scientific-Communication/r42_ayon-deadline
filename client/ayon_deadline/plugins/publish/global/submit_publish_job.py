@@ -221,7 +221,8 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             if os.getenv(env_key):
                 environment[env_key] = os.environ[env_key]
 
-        priority = self.deadline_priority or instance.data.get("priority", 50)
+        # priority = self.deadline_priority or instance.data.get("priority", 50)
+        priority = instance.data.get('priority') or self.deadline_priority
 
         instance_settings = self.get_attr_values_from_data(instance.data)
         initial_status = instance_settings.get("publishJobState", "Active")
