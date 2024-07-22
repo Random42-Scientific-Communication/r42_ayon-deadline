@@ -91,7 +91,7 @@ class HoudiniSubmitDeadline(
     """
 
     label = "Submit Render to Deadline"
-    order = pyblish.api.IntegratorOrder
+    order = pyblish.api.IntegratorOrder + 0.3
     hosts = ["houdini"]
     families = ["redshift_rop",
                 "arnold_rop",
@@ -112,6 +112,8 @@ class HoudiniSubmitDeadline(
 
     @classmethod
     def get_attribute_defs(cls):
+        return[]
+        '''
         return [
             NumberDef(
                 "priority",
@@ -152,13 +154,16 @@ class HoudiniSubmitDeadline(
                 label="Export Group Name"
             ),
         ]
+        '''
 
     def get_job_info(self, dependency_job_ids=None):
 
         instance = self._instance
         context = instance.context
 
-        attribute_values = self.get_attr_values_from_data(instance.data)
+        # ------------------------------------------
+        # attribute_values = self.get_attr_values_from_data(instance.data)
+        # ------------------------------------------
 
         # Whether Deadline render submission is being split in two
         # (extract + render)
@@ -189,34 +194,66 @@ class HoudiniSubmitDeadline(
 
         filepath = context.data["currentFile"]
         filename = os.path.basename(filepath)
-        job_info.Name = "{} - {} {}".format(filename, instance.name, job_type)
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        job_info.Name = "{} - {} {} [{}x{}]".format(filename, instance.name, job_type, width, height)
         job_info.BatchName = filename
 
         job_info.UserName = context.data.get(
             "deadlineUser", getpass.getuser())
 
+        '''
+        if split_render_job and is_export_job:
+            job_info.Priority = attribute_values.get(
+                "export_priority", self.export_priority
+            )
+        else:
+            job_info.Priority = attribute_values.get(
+                "priority", self.priority
+            )
+        '''
+        if split_render_job and is_export_job:
+            job_info.Priority = instance.data["export_priority"]
+        else:
+            job_info.Priority = instance.data["priority"]
+
         if is_in_tests():
             job_info.BatchName += datetime.now().strftime("%d%m%Y%H%M%S")
 
         # Deadline requires integers in frame range
-        start = instance.data["frameStartHandle"]
-        end = instance.data["frameEndHandle"]
-        frames = "{start}-{end}x{step}".format(
-            start=int(start),
-            end=int(end),
-            step=int(instance.data["byFrameStep"]),
-        )
+        use_preview_frames = instance.data["use_preview_frames"]
+
+        if not use_preview_frames:
+            start = instance.data["frameStartHandle"]
+            end = instance.data["frameEndHandle"]
+            frames = "{start}-{end}x{step}".format(
+                start=int(start),
+                end=int(end),
+                step=int(instance.data["byFrameStep"]),
+            )
+        else:
+            frames = self._get_non_preview_frames()
+
         job_info.Frames = frames
 
         # Make sure we make job frame dependent so render tasks pick up a soon
         # as export tasks are done
         if split_render_job and not is_export_job:
-            job_info.IsFrameDependent = bool(instance.data.get(
-                "splitRenderFrameDependent", True))
+            job_info.IsFrameDependent = True
+
+        # If use preview frames, we want the preview jobs to be done first
+        if use_preview_frames:
+            job_info.IsFrameDependent = False
+
+        self.log.debug("====================================")
+        self.log.debug(f"Job Info Frame Dependent = {job_info.IsFrameDependent}")
+        self.log.debug("====================================")
 
         job_info.Pool = instance.data.get("primaryPool")
         job_info.SecondaryPool = instance.data.get("secondaryPool")
+        job_info.Group = self.group
 
+        '''
         if split_render_job and is_export_job:
             job_info.Priority = attribute_values.get(
                 "export_priority", self.export_priority
@@ -233,6 +270,11 @@ class HoudiniSubmitDeadline(
                 "chunk", self.chunk_size
             )
             job_info.Group = self.group
+        '''
+        if split_render_job and is_export_job:
+            job_info.ChunkSize = instance.data["export_chunk_size"]
+        else:
+            job_info.ChunkSize = instance.data["chunk_size"]
 
         # Apply render globals, like e.g. data from collect machine list
         render_globals = instance.data.get("renderGlobals", {})
@@ -350,13 +392,36 @@ class HoudiniSubmitDeadline(
 
         return attr.asdict(plugin_info)
 
+    def _get_non_preview_frames(self):
+        instance = self._instance
+        start = int(instance.data["frameStart"])
+        end = int(instance.data["frameEnd"])
+        skip = int(instance.data['preview_frame_skip'])
+
+        preview_frames = []
+        rest_of_frames = []
+
+        for i in range(start, end + 1, skip):
+            preview_frames.append(i)
+
+        for i in range(start, end + 1):
+            rest_of_frames.append(i)
+
+        rest_of_frames = list(set(rest_of_frames) - set(preview_frames))
+        frame_str = ','.join([str(x) for x in rest_of_frames])
+        return frame_str
+
     def process(self, instance):
         if not instance.data["farm"]:
             self.log.debug("Render on farm is disabled. "
                            "Skipping deadline submission.")
             return
 
-        super(HoudiniSubmitDeadline, self).process(instance)
+        use_preview_frames = instance.data["use_preview_frames"]
+        if not use_preview_frames:
+            super(HoudiniSubmitDeadline, self).process(instance)
+        else:
+            super(HoudiniSubmitDeadline, self).process(instance, "rest")
 
         # TODO: Avoid the need for this logic here, needed for submit publish
         # Store output dir for unified publisher (filesequence)

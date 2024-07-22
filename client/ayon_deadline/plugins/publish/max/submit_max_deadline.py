@@ -19,6 +19,7 @@ from ayon_max.api.lib import (
     get_current_renderer,
     get_multipass_setting
 )
+import pyblish.api
 from ayon_max.api.lib_rendersettings import RenderSettings
 from ayon_deadline import abstract_submit_deadline
 from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
@@ -39,6 +40,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     hosts = ["max"]
     families = ["maxrender"]
     targets = ["local"]
+    order = pyblish.api.IntegratorOrder + 0.3
     settings_category = "deadline"
 
     use_published = True
@@ -47,6 +49,8 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     jobInfo = {}
     pluginInfo = {}
     group = None
+
+    initialStatus = "active"
 
     @classmethod
     def apply_settings(cls, project_settings):
@@ -59,6 +63,8 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
                                     cls.priority)
         cls.chuck_size = settings.get("chunk_size", cls.chunk_size)
         cls.group = settings.get("group", cls.group)
+        cls.initialStatus = settings.get("initialStatus", cls.initialStatus)
+
     # TODO: multiple camera instance, separate job infos
     def get_job_info(self):
         job_info = DeadlineJobInfo(Plugin="3dsmax")
@@ -76,27 +82,46 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
-        job_info.Name = "%s - %s" % (src_filename, instance.name)
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        job_info.Name = "%s - %s [%sx%s]" % (src_filename, instance.name, width, height)
         job_info.BatchName = src_filename
         job_info.Plugin = instance.data["plugin"]
         job_info.UserName = context.data.get("deadlineUser", getpass.getuser())
         job_info.EnableAutoTimeout = True
         # Deadline requires integers in frame range
-        frames = "{start}-{end}".format(
-            start=int(instance.data["frameStart"]),
-            end=int(instance.data["frameEnd"])
-        )
+
+        use_preview_frames = instance.data["use_preview_frames"]
+        self.log.debug("===============================================")
+        self.log.debug(f"use_preview_frames: {use_preview_frames}")
+        self.log.debug("===============================================")
+
+        if not use_preview_frames:
+            frames = "{start}-{end}".format(
+                start=int(instance.data["frameStart"]),
+                end=int(instance.data["frameEnd"])
+            )
+        else:
+            frames = self._get_non_preview_frames()
         job_info.Frames = frames
 
         job_info.Pool = instance.data.get("primaryPool")
         job_info.SecondaryPool = instance.data.get("secondaryPool")
 
-        attr_values = self.get_attr_values_from_data(instance.data)
+        if use_preview_frames:
+            job_info.JobDependencies = instance.data.get("previewDeadlineSubmissionJob")
+            self.log.debug("===============================================")
+            self.log.debug(f"instance.data.get('previewDeadlineSubmissionJob'): {instance.data.get('previewDeadlineSubmissionJob')}")
+            self.log.debug("===============================================")
 
-        job_info.ChunkSize = attr_values.get("chunkSize", 1)
+        # attr_values = self.get_attr_values_from_data(instance.data)
+
+        job_info.ChunkSize = instance.data["chunk_size"]
         job_info.Comment = context.data.get("comment")
-        job_info.Priority = attr_values.get("priority", self.priority)
-        job_info.Group = attr_values.get("group", self.group)
+        job_info.Priority = instance.data["priority"]
+        job_info.Group = instance.data["group"]
+        job_info.LimitGroups = "redshift"
+        job_info.InitialStatus = instance.data["initial_status"]
 
         # Add options from RenderGlobals
         render_globals = instance.data.get("renderGlobals", {})
@@ -282,8 +307,10 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
-        job_info.Name = "%s - %s - %s" % (
-            src_filename, instance.name, camera)
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        job_info.Name = "%s - %s - %s [%sx%s]" % (
+            src_filename, instance.name, camera, width, height)
         for filepath in self._iter_expected_files(exp):
             if camera not in filepath:
                 continue
@@ -391,6 +418,25 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         return replace_with_published_scene_path(
             instance, replace_in_path)
 
+    def _get_non_preview_frames(self):
+        instance = self._instance
+        start = int(instance.data["frameStart"])
+        end = int(instance.data["frameEnd"])
+        skip = int(instance.data['preview_frame_skip'])
+
+        preview_frames = []
+        rest_of_frames = []
+
+        for i in range(start, end + 1, skip):
+            preview_frames.append(i)
+
+        for i in range(start, end + 1):
+            rest_of_frames.append(i)
+
+        rest_of_frames = list(set(rest_of_frames) - set(preview_frames))
+        frame_str = ','.join([str(x) for x in rest_of_frames])
+        return frame_str
+
     @staticmethod
     def _iter_expected_files(exp):
         if isinstance(exp[0], dict):
@@ -404,6 +450,8 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     @classmethod
     def get_attribute_defs(cls):
         defs = super(MaxSubmitDeadline, cls).get_attribute_defs()
+
+        '''
         defs.extend([
             BoolDef("use_published",
                     default=cls.use_published,
@@ -427,5 +475,6 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
                     default=cls.group,
                     label="Group Name"),
         ])
+        '''
 
         return defs

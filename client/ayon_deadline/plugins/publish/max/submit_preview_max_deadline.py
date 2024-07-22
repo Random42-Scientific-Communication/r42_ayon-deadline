@@ -3,12 +3,6 @@ import getpass
 import copy
 import attr
 
-from ayon_core.lib import (
-    TextDef,
-    BoolDef,
-    NumberDef,
-    EnumDef,
-)
 from ayon_core.pipeline import (
     AYONPyblishPluginMixin
 )
@@ -141,7 +135,7 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             "AYON_TASK_NAME",
             "AYON_WORKDIR",
             "AYON_APP_NAME",
-            "IS_TEST",
+            "AYON_IN_TESTS",
         ]
 
         environment = {
