@@ -80,7 +80,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
     """
 
     label = "Submit Image Publishing job to Deadline"
-    order = pyblish.api.IntegratorOrder + 0.2
+    order = pyblish.api.IntegratorOrder + 0.299
     icon = "tractor"
 
     targets = ["local"]

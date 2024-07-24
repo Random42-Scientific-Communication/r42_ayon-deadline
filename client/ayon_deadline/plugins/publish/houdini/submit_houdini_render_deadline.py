@@ -91,7 +91,7 @@ class HoudiniSubmitDeadline(
     """
 
     label = "Submit Render to Deadline"
-    order = pyblish.api.IntegratorOrder + 0.3
+    order = pyblish.api.IntegratorOrder + 0.298
     hosts = ["houdini"]
     families = ["redshift_rop",
                 "arnold_rop",
@@ -102,6 +102,8 @@ class HoudiniSubmitDeadline(
     settings_category = "deadline"
     use_published = True
 
+    # This part is being done in collect_R42_houdini_publish_attributes
+    '''
     # presets
     export_priority = 50
     export_chunk_size = 10
@@ -109,7 +111,9 @@ class HoudiniSubmitDeadline(
     priority = 50
     chunk_size = 1
     group = ""
+    '''
 
+    # This part is being done in collect_R42_houdini_publish_attributes
     @classmethod
     def get_attribute_defs(cls):
         return[]
@@ -184,6 +188,7 @@ class HoudiniSubmitDeadline(
             if not plugin:
                 # Convert from product type to Deadline plugin name
                 # i.e., arnold_rop -> Arnold
+                self.log.debug(" -> -> -> -> -> -> ENTERED HERE")
                 plugin = product_type.replace("_rop", "").capitalize()
         else:
             plugin = "Houdini"
@@ -201,21 +206,6 @@ class HoudiniSubmitDeadline(
 
         job_info.UserName = context.data.get(
             "deadlineUser", getpass.getuser())
-
-        '''
-        if split_render_job and is_export_job:
-            job_info.Priority = attribute_values.get(
-                "export_priority", self.export_priority
-            )
-        else:
-            job_info.Priority = attribute_values.get(
-                "priority", self.priority
-            )
-        '''
-        if split_render_job and is_export_job:
-            job_info.Priority = instance.data["export_priority"]
-        else:
-            job_info.Priority = instance.data["priority"]
 
         if is_in_tests():
             job_info.BatchName += datetime.now().strftime("%d%m%Y%H%M%S")
@@ -251,7 +241,6 @@ class HoudiniSubmitDeadline(
 
         job_info.Pool = instance.data.get("primaryPool")
         job_info.SecondaryPool = instance.data.get("secondaryPool")
-        job_info.Group = self.group
 
         '''
         if split_render_job and is_export_job:
@@ -272,9 +261,13 @@ class HoudiniSubmitDeadline(
             job_info.Group = self.group
         '''
         if split_render_job and is_export_job:
+            job_info.Priority = instance.data["export_priority"]
             job_info.ChunkSize = instance.data["export_chunk_size"]
+            job_info.Group = instance.data["export_group"]
         else:
+            job_info.Priority = instance.data["priority"]
             job_info.ChunkSize = instance.data["chunk_size"]
+            job_info.Group = instance.data["group"]
 
         # Apply render globals, like e.g. data from collect machine list
         render_globals = instance.data.get("renderGlobals", {})

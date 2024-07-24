@@ -40,7 +40,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     hosts = ["max"]
     families = ["maxrender"]
     targets = ["local"]
-    order = pyblish.api.IntegratorOrder + 0.3
+    order = pyblish.api.IntegratorOrder + 0.298
     settings_category = "deadline"
 
     use_published = True

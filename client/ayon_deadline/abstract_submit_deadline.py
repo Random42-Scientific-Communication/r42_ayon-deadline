@@ -426,7 +426,14 @@ class AbstractSubmitDeadline(pyblish.api.InstancePlugin,
         self.plugin_info = None
         self.aux_files = None
 
-    def process(self, instance):
+    def process(self, instance, state="all"):
+        """
+        State is a custom attribute by R42.
+        It is to determine what state the function is being called in
+            all = render all frames
+            preview = render preview frames
+            rest = render rest of frames
+        """
         """Plugin entry point."""
         self._instance = instance
         context = instance.context
@@ -450,15 +457,27 @@ class AbstractSubmitDeadline(pyblish.api.InstancePlugin,
         self.scene_path = file_path
         self.log.info("Using {} for render/export.".format(file_path))
 
-        self.job_info = self.get_job_info()
-        self.plugin_info = self.get_plugin_info()
-        self.aux_files = self.get_aux_files()
+        # -------------------------------------------------------
+        if state != "rest":
+            self.job_info = self.get_job_info()
+            self.plugin_info = self.get_plugin_info()
+            self.aux_files = self.get_aux_files()
 
-        job_id = self.process_submission()
-        self.log.info("Submitted job to Deadline: {}.".format(job_id))
+            job_id = self.process_submission()
+            self.log.info("Submitted job to Deadline: {}.".format(job_id))
+        else:
+            # Assign job_id
+            job_id = self._instance.data["previewDeadlineSubmissionJob"]
+            self.job_info = self.get_job_info(dependency_job_ids=[job_id])
+            self.plugin_info = self.get_plugin_info(job_type="render")
+            self.aux_files = self.get_aux_files()
+
+            job_id = self.process_submission()
+            self.log.info("Submitted <rest of frames> job to Deadline: {}.".format(job_id))
+        # -------------------------------------------------------
 
         # TODO: Find a way that's more generic and not render type specific
-        if instance.data.get("splitRender"):
+        if instance.data.get("splitRender") and state != "rest":
             self.log.info("Splitting export and render in two jobs")
             self.log.info("Export job id: %s", job_id)
             render_job_info = self.get_job_info(dependency_job_ids=[job_id])
