@@ -88,7 +88,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         job_info.BatchName = src_filename
         job_info.Plugin = instance.data["plugin"]
         job_info.UserName = context.data.get("deadlineUser", getpass.getuser())
-        job_info.EnableAutoTimeout = True
+        job_info.EnableAutoTimeout = False
         # Deadline requires integers in frame range
 
         use_preview_frames = instance.data["use_preview_frames"]
