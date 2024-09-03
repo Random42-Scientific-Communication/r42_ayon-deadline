@@ -5,7 +5,6 @@ import json
 import re
 from copy import deepcopy
 
-import shutil
 import clique
 import ayon_api
 import pyblish.api
@@ -13,8 +12,6 @@ import pyblish.api
 from ayon_core.pipeline import publish
 from ayon_core.lib import EnumDef, is_in_tests
 from ayon_core.pipeline.version_start import get_versioning_start
-
-from ayon_core import resources as rsources
 
 from ayon_core.pipeline.farm.pyblish_functions import (
     create_skeleton_instance,
@@ -203,6 +200,10 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         # job so they use the same environment
         metadata_path, rootless_metadata_path = \
             create_metadata_path(instance, anatomy)
+
+        # ============================= r42 custom ==============================
+        rootless_metadata_path = self._modify_json_path(rootless_metadata_path)
+        # ============================= r42 custom ==============================
 
         environment = {
             "AYON_PROJECT_NAME": instance.context.data["projectName"],
@@ -505,7 +506,10 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         metadata_path, rootless_metadata_path = \
             create_metadata_path(instance, anatomy)
 
-        self._generate_fill_in_frames(publish_job)
+        # ====================== r42 custom ==================================
+        metadata_path = self._modify_json_path(metadata_path)
+        publish_job = self._modify_preview_json_data(instance, publish_job)
+        # ====================== r42 custom ==================================
 
         with open(metadata_path, "w") as f:
             json.dump(publish_job, f, indent=4, sort_keys=True)
@@ -588,36 +592,46 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         return render_dir_template.format_strict(template_data)
 
-    def _generate_fill_in_frames(self, publish_job):
-        out_dir_list = publish_job["job"]["OutDir"]
-        out_file_list = publish_job["job"]["OutFile"]
-        frame_start = publish_job["frameStart"]
-        frame_end = publish_job["frameEnd"]
+    def _modify_preview_json_data(self, instance, publish_job):
+        preview_frame_skip = instance.data["preview_frame_skip"]
+        # out_dir_list = publish_job["job"]["OutDir"]
+        # out_file_list = publish_job["job"]["OutFile"]
+        # frame_start = publish_job["frameStart"]
+        # frame_end = publish_job["frameEnd"]
+        # preview_dir_list = []
+        # preview_file_list =[]
 
-        images = rsources.get_resource("images")
-        temp_exr = os.path.join(images, "default_black.exr")
-
-        for i in range(0, len(out_file_list)):
+        '''
+        for i in range(0, len(out_file_list), preview_frame_skip):
             current_dir = out_dir_list[i]
             current_file = out_file_list[i]
-            if "####" in current_file:
-                for j in range(frame_start, frame_end+1):
-                    replaced_file = current_file.replace("####", str(j).zfill(4))
-                    current_full_path = os.path.join(current_dir, replaced_file)
-                    # Check if file exists
-                    file_exist = os.path.exists(current_full_path)
-                    self.log.info(f"file check: {current_full_path}")
-                    if not file_exist:
-                        # Copy and rename temp file
-                        shutil.copy(temp_exr, current_full_path)
+            preview_dir_list.append(current_dir)
+            preview_file_list.append(current_file)
 
-            else:
-                current_full_path = os.path.join(current_dir, current_file)
-                # Check if file exists
-                file_exist = os.path.exists(current_full_path)
-                if not file_exist:
-                    # Copy and rename temp file
-                    shutil.copy(temp_exr, current_full_path)
+        publish_job["job"]["OutDir"] = preview_dir_list
+        publish_job["job"]["OutFile"] = preview_file_list
+        '''
+
+        publish_instances = publish_job["instances"]
+        for i in range(0, len(publish_instances)):
+            publish_instance = publish_instances[i]
+            rep = publish_instance["representations"]
+            for r in range(0, len(rep)):
+                out_file_list = rep[r]["files"]
+                preview_file_list = []
+                for f in range(0, len(out_file_list), preview_frame_skip):
+                    current_file = out_file_list[f]
+                    preview_file_list.append(current_file)
+                publish_job["instances"][i]["representations"][r]["files"] = preview_file_list
+
+        return publish_job
+
+    def _modify_json_path(self, input_path):
+        basename = os.path.basename(input_path)
+        splitext = os.path.splitext(basename)
+        new_basename = f"{splitext[0]}_preview{splitext[1]}"
+        new_path = os.path.join(os.path.dirname(input_path), new_basename)
+        return new_path
 
     @classmethod
     def get_attribute_defs(cls):
