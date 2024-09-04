@@ -256,7 +256,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                 "Priority": priority,
                 "InitialStatus": initial_status,
 
-                "Group": self.deadline_group,
+                "Group": instance.data["group"],
                 "Pool": self.deadline_pool or instance.data.get("primaryPool"),
                 "SecondaryPool": secondary_pool,
                 # ensure the outputdirectory with correct slashes
