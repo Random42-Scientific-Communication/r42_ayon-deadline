@@ -185,6 +185,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         if instance_version != 1:
             override_version = instance_version
 
+        # ========================== R42 Modify ======================================
+        use_preview_frames = instance.data["use_preview_frames"]
+
         output_dir = self._get_publish_folder(
             anatomy,
             deepcopy(instance.data["anatomyData"]),
@@ -192,8 +195,10 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             instances[0]["productName"],
             instance.context,
             instances[0]["productType"],
-            override_version
+            override_version,
+            use_preview_frames
         )
+        # ========================== R42 Modify ======================================
 
         # Transfer the environment from the original job to this dependent
         # job so they use the same environment
@@ -495,12 +500,16 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         metadata_path, rootless_metadata_path = \
             create_metadata_path(instance, anatomy)
 
+        # ====================== r42 custom ==================================
+        publish_job = self._modify_json_data(instance, publish_job)
+        # ====================== r42 custom ==================================
+
         with open(metadata_path, "w") as f:
             json.dump(publish_job, f, indent=4, sort_keys=True)
 
     def _get_publish_folder(self, anatomy, template_data,
                             folder_entity, product_name, context,
-                            product_type, version=None):
+                            product_type, version=None, r42_has_preview=False):
         """
             Extracted logic to pre-calculate real publish folder, which is
             calculated in IntegrateNew inside of Deadline process.
@@ -521,6 +530,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                 TODO - for generic use family needs to be dynamically
                     calculated like IntegrateNew does
             version (int): override version from instance if exists
+            r42_has_preview (bool): Adds a version to it if there is an additional preview render before
 
         Returns:
             (string): publish folder where rendered and published files will
@@ -552,6 +562,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                     project_settings=context.data["project_settings"]
                 )
 
+        if r42_has_preview:
+            version += 1
+
         host_name = context.data["hostName"]
         task_info = template_data.get("task") or {}
 
@@ -575,6 +588,17 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             "publish", template_name, "directory"
         )
         return render_dir_template.format_strict(template_data)
+
+    def _modify_json_data(self, instance, publish_job):
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+
+        publish_instances = publish_job["instances"]
+        for i in range(0, len(publish_instances)):
+            publish_job["instances"][i]["resolutionHeight"] = height
+            publish_job["instances"][i]["resolutionWidth"] = width
+
+        return publish_job
 
     @classmethod
     def get_attribute_defs(cls):

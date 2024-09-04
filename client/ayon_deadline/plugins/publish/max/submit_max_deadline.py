@@ -434,6 +434,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             rest_of_frames.append(i)
 
         rest_of_frames = list(set(rest_of_frames) - set(preview_frames))
+        rest_of_frames.sort()
         frame_str = ','.join([str(x) for x in rest_of_frames])
         return frame_str
 

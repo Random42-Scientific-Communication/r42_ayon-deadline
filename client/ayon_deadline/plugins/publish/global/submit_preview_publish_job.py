@@ -594,27 +594,14 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
     def _modify_preview_json_data(self, instance, publish_job):
         preview_frame_skip = instance.data["preview_frame_skip"]
-        # out_dir_list = publish_job["job"]["OutDir"]
-        # out_file_list = publish_job["job"]["OutFile"]
-        # frame_start = publish_job["frameStart"]
-        # frame_end = publish_job["frameEnd"]
-        # preview_dir_list = []
-        # preview_file_list =[]
-
-        '''
-        for i in range(0, len(out_file_list), preview_frame_skip):
-            current_dir = out_dir_list[i]
-            current_file = out_file_list[i]
-            preview_dir_list.append(current_dir)
-            preview_file_list.append(current_file)
-
-        publish_job["job"]["OutDir"] = preview_dir_list
-        publish_job["job"]["OutFile"] = preview_file_list
-        '''
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
 
         publish_instances = publish_job["instances"]
         for i in range(0, len(publish_instances)):
             publish_instance = publish_instances[i]
+            publish_job["instances"][i]["resolutionHeight"] = height
+            publish_job["instances"][i]["resolutionWidth"] = width
             rep = publish_instance["representations"]
             for r in range(0, len(rep)):
                 out_file_list = rep[r]["files"]
