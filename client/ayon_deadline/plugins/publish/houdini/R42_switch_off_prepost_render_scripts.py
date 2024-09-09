@@ -16,7 +16,7 @@ class R42SwitchOffRenderScripts(pyblish.api.InstancePlugin,
     """
 
     label = "R42 Switch Off PrePost Render Scripts"
-    order = pyblish.api.CollectorOrder + 0.49
+    order = pyblish.api.ExtractorOrder - 0.5
     hosts = ["houdini"]
     families = ["usdrender",
                 "redshift_rop",
@@ -39,6 +39,7 @@ class R42SwitchOffRenderScripts(pyblish.api.InstancePlugin,
         all_nodes.extend(out_nodes)
 
         parms_to_turn_off_on = []
+        node_to_clear_script = []
 
         for node in all_nodes:
             if node.type().name() in self.node_type_list_to_check:
@@ -54,8 +55,17 @@ class R42SwitchOffRenderScripts(pyblish.api.InstancePlugin,
                     if node.parm("tpostwrite").eval() and node.parm("postwrite").eval():
                         parms_to_turn_off_on.append(node.parm("tpostwrite"))
 
+                if node.type().name() == "Redshift_ROP":
+                    node_to_clear_script.append(node)
+
         for current_parm in parms_to_turn_off_on:
             current_parm.set(0)
 
+        for node in node_to_clear_script:
+            node.parm("prerender").set("")
+            node.parm("postframe").set("")
+
+
         # Store data so we can turn it back on later
         instance.data["parms_to_turn_off_on"] = parms_to_turn_off_on
+        instance.data["node_to_clear_script"] = node_to_clear_script

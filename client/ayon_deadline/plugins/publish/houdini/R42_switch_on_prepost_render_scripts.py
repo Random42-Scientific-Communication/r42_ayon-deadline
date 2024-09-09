@@ -19,5 +19,14 @@ class R42SwitchOnRenderScripts(pyblish.api.InstancePlugin):
     targets = ["local"]
 
     def process(self, instance):
+        redshift_rop_prerender = "from nodes import redshift_rop_setup" \
+                                 "\nredshift_rop_setup.pre_render_storyboard_image(hou.pwd())"
+        redshift_rop_postrender = "from nodes import redshift_rop_setup" \
+                                  "\nredshift_rop_setup.post_render_storyboard_image(hou.pwd())"
+
         for current_parm in instance.data["parms_to_turn_off_on"]:
             current_parm.set(1)
+
+        for node in instance.data["node_to_clear_script"]:
+            node.parm("prerender").set(redshift_rop_prerender)
+            node.parm("postframe").set(redshift_rop_postrender)
