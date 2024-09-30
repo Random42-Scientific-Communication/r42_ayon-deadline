@@ -186,7 +186,10 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             override_version = instance_version
 
         # ========================== R42 Modify ======================================
-        use_preview_frames = instance.data["use_preview_frames"]
+        try:
+            use_preview_frames = instance.data["use_preview_frames"]
+        except KeyError:
+            use_preview_frames = False
 
         output_dir = self._get_publish_folder(
             anatomy,
