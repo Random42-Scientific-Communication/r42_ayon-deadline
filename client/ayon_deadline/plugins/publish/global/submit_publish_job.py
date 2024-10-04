@@ -230,8 +230,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                 environment[env_key] = os.environ[env_key]
 
         # priority = self.deadline_priority or instance.data.get("priority", 50)
-        self.deadline_priority = instance.context.data["project_settings"]["deadline"]["publish"]["ProcessSubmittedJobOnFarm"]
-        priority = instance.data.get('priority') or self.deadline_priority
+        self.deadline_priority = instance.context.data["project_settings"]["deadline"]["publish"][
+            "ProcessSubmittedJobOnFarm"]["deadline_priority"]
+        priority = self.deadline_priority or instance.data.get('priority', 99)
 
         instance_settings = self.get_attr_values_from_data(instance.data)
         initial_status = instance_settings.get("publishJobState", "Active")
@@ -248,6 +249,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         secondary_pool = (
             self.deadline_pool_secondary or instance.data.get("secondaryPool")
         )
+
         payload = {
             "JobInfo": {
                 "Plugin": "Ayon",

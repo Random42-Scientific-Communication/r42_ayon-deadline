@@ -227,7 +227,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                 environment[env_key] = os.environ[env_key]
 
         self.deadline_priority = instance.context.data["project_settings"]["deadline"]["publish"][
-            "ProcessSubmittedJobOnFarm"]
+            "ProcessSubmittedJobOnFarm"]["deadline_priority"]
         priority = self.deadline_priority or instance.data.get("preview_priority", 99)
 
         instance_settings = self.get_attr_values_from_data(instance.data)
