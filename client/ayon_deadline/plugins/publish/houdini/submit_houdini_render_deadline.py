@@ -14,6 +14,13 @@ from ayon_core.lib import (
 from ayon_deadline import abstract_submit_deadline
 from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
 
+try:
+    from ayon_usd import get_usd_pinning_envs
+except ImportError:
+    # usd is not enabled or available, so we just mock the function
+    def get_usd_pinning_envs(instance):
+        return {}
+
 
 @attr.s
 class DeadlinePluginInfo():
@@ -250,7 +257,9 @@ class HoudiniSubmitDeadline(
             job_info.ChunkSize = attribute_values.get(
                 "export_chunk", self.export_chunk_size
             )
-            job_info.Group = self.export_group
+            job_info.Group = attribute_values.get(
+                "export_group", self.export_group
+            )
         else:
             job_info.Priority = attribute_values.get(
                 "priority", self.priority
@@ -299,6 +308,12 @@ class HoudiniSubmitDeadline(
             for key in keys
             if key in os.environ
         }
+
+        # TODO (antirotor): there should be better way to handle this.
+        #   see https://github.com/ynput/ayon-core/issues/876
+        usd_env = get_usd_pinning_envs(instance)
+        environment.update(usd_env)
+        keys += list(usd_env.keys())
 
         for key in keys:
             value = environment.get(key)
