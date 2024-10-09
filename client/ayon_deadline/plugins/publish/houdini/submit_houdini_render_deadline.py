@@ -195,7 +195,6 @@ class HoudiniSubmitDeadline(
             if not plugin:
                 # Convert from product type to Deadline plugin name
                 # i.e., arnold_rop -> Arnold
-                self.log.debug(" -> -> -> -> -> -> ENTERED HERE")
                 plugin = product_type.replace("_rop", "").capitalize()
         else:
             plugin = "Houdini"

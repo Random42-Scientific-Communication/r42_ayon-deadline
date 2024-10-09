@@ -120,12 +120,15 @@ class CollectR42HoudiniPublishAttributes(pyblish.api.InstancePlugin,
                 minimum=1,
                 maximum=1000
             ),
-            BoolDef(
-                "suspend_publish",
-                default=cls.suspend_publish,
-                label="Suspend publish"
-            )
         ]
+
+        '''
+        BoolDef(
+            "suspend_publish",
+            default=cls.suspend_publish,
+            label="Suspend publish"
+        )
+        '''
 
 
     def process(self, instance):
@@ -139,7 +142,7 @@ class CollectR42HoudiniPublishAttributes(pyblish.api.InstancePlugin,
         self.log.info(f"preview_frame_skip : {attr_values.get('preview_frame_skip', self.preview_frame_skip)}")
         self.log.info(f"priority : {attr_values.get('priority', self.priority)}")
         self.log.info(f"chunk_size : {attr_values.get('chunk_size', self.chunk_size)}")
-        self.log.info(f"suspend_publish : {attr_values.get('suspend_publish', self.suspend_publish)}")
+        # self.log.info(f"suspend_publish : {attr_values.get('suspend_publish', self.suspend_publish)}")
 
         # Store all attributes
         instance.data["group"] = attr_values.get('group', self.group)
@@ -151,7 +154,7 @@ class CollectR42HoudiniPublishAttributes(pyblish.api.InstancePlugin,
         instance.data["preview_frame_skip"] = attr_values.get('preview_frame_skip', self.preview_frame_skip)
         instance.data["priority"] = attr_values.get('priority', self.priority)
         instance.data["chunk_size"] = attr_values.get('chunk_size', self.chunk_size)
-        instance.data["suspend_publish"] = attr_values.get('suspend_publish', self.suspend_publish)
+        # instance.data["suspend_publish"] = attr_values.get('suspend_publish', self.suspend_publish)
 
         # Store helper attributes
         instance.data["previewDeadlineSubmissionJob"] = None

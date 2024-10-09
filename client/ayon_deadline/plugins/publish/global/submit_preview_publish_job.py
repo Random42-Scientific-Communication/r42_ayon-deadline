@@ -87,7 +87,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
     targets = ["local"]
 
     hosts = ["fusion", "max", "maya", "nuke", "houdini",
-             "celaction", "aftereffects", "harmony", "blender"]
+             "celaction", "aftereffects", "harmony", "blender", "unreal"]
 
     families = ["render", "render.farm", "render.frames_farm",
                 "prerender", "prerender.farm", "prerender.frames_farm",
@@ -204,7 +204,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         # ============================= r42 custom ==============================
         rootless_metadata_path = self._modify_json_path(rootless_metadata_path)
         # ============================= r42 custom ==============================
-
+        settings_variant = os.environ["AYON_DEFAULT_SETTINGS_VARIANT"]
         environment = {
             "AYON_PROJECT_NAME": instance.context.data["projectName"],
             "AYON_FOLDER_PATH": instance.context.data["folderPath"],
@@ -216,9 +216,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             "AYON_RENDER_JOB": "0",
             "AYON_REMOTE_PUBLISH": "0",
             "AYON_BUNDLE_NAME": os.environ["AYON_BUNDLE_NAME"],
-            "AYON_DEFAULT_SETTINGS_VARIANT": (
-                os.environ["AYON_DEFAULT_SETTINGS_VARIANT"]
-            ),
+            "AYON_DEFAULT_SETTINGS_VARIANT": settings_variant,
         }
 
         # add environments from self.environ_keys
@@ -230,6 +228,13 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             "ProcessSubmittedJobOnFarm"]["deadline_priority"]
         priority = self.deadline_priority or instance.data.get("preview_priority", 99)
 
+        # =================================================
+        self.deadline_group = instance.context.data["project_settings"]["deadline"]["publish"][
+            "ProcessSubmittedJobOnFarm"]["deadline_group"]
+        self.deadline_pool = instance.context.data["project_settings"]["deadline"]["publish"][
+            "ProcessSubmittedJobOnFarm"]["deadline_pool"]
+        # =================================================
+
         instance_settings = self.get_attr_values_from_data(instance.data)
         initial_status = instance_settings.get("publishJobState", "Active")
 
@@ -240,11 +245,16 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             "--targets", "deadline",
             "--targets", "farm"
         ]
+        # TODO remove when AYON launcher respects environment variable
+        #   'AYON_DEFAULT_SETTINGS_VARIANT'
+        if settings_variant == "staging":
+            args.append("--use-staging")
 
         # Generate the payload for Deadline submission
         secondary_pool = (
             self.deadline_pool_secondary or instance.data.get("secondaryPool")
         )
+
         payload = {
             "JobInfo": {
                 "Plugin": "Ayon",
@@ -254,11 +264,11 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                 "Comment": instance.context.data.get("comment", ""),
 
                 "Department": self.deadline_department,
-                "ChunkSize": self.deadline_chunk_size,
+                "ChunkSize": 1,
                 "Priority": priority,
                 "InitialStatus": initial_status,
 
-                "Group": instance.data["group"],
+                "Group": self.deadline_group,
                 "Pool": self.deadline_pool or instance.data.get("primaryPool"),
                 "SecondaryPool": secondary_pool,
                 # ensure the outputdirectory with correct slashes
