@@ -8,7 +8,11 @@ from ayon_deadline.lib import FARM_FAMILIES
 
 class CollectDeadlinePools(pyblish.api.InstancePlugin,
                            AYONPyblishPluginMixin):
-    """Collect pools from instance or Publisher attributes, from Setting
+    """ This is an R42 custom setup just because for Fusion specifically
+    We use <comp> as our primary pool
+    -----------------------------------------------------------------
+
+    Collect pools from instance or Publisher attributes, from Setting
     otherwise.
 
     Pools are used to control which DL workers could render the job.
@@ -29,13 +33,7 @@ class CollectDeadlinePools(pyblish.api.InstancePlugin,
     order = pyblish.api.CollectorOrder + 0.420
     label = "Collect Deadline Pools"
     hosts = [
-        "aftereffects",
-        "harmony",
-        "maya",
-        "max",
-        "houdini",
-        "nuke",
-        "unreal"
+        "fusion",
     ]
 
     families = FARM_FAMILIES
@@ -47,7 +45,7 @@ class CollectDeadlinePools(pyblish.api.InstancePlugin,
     def apply_settings(cls, project_settings):
         # deadline.publish.CollectDeadlinePools
         settings = project_settings["deadline"]["publish"]["CollectDeadlinePools"]  # noqa
-        cls.primary_pool = settings.get("primary_pool", None)
+        cls.primary_pool = "comp"
         cls.secondary_pool = settings.get("secondary_pool", None)
 
     def process(self, instance):
