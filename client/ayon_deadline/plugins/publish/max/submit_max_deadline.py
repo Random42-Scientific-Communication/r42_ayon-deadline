@@ -1,13 +1,7 @@
 import os
-import getpass
 import copy
-import attr
+from dataclasses import dataclass, field, asdict
 
-from ayon_core.lib import (
-    TextDef,
-    BoolDef,
-    NumberDef,
-)
 from ayon_core.pipeline import (
     AYONPyblishPluginMixin
 )
@@ -22,15 +16,14 @@ from ayon_max.api.lib import (
 import pyblish.api
 from ayon_max.api.lib_rendersettings import RenderSettings
 from ayon_deadline import abstract_submit_deadline
-from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
 
 
-@attr.s
+@dataclass
 class MaxPluginInfo(object):
-    SceneFile = attr.ib(default=None)   # Input
-    Version = attr.ib(default=None)  # Mandatory for Deadline
-    SaveFile = attr.ib(default=True)
-    IgnoreInputs = attr.ib(default=True)
+    SceneFile: str = field(default=None)   # Input
+    Version: str = field(default=None)  # Mandatory for Deadline
+    SaveFile: bool = field(default=True)
+    IgnoreInputs: bool = field(default=True)
 
 
 class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
@@ -43,52 +36,12 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     order = pyblish.api.IntegratorOrder + 0.298
     settings_category = "deadline"
 
-    use_published = True
-    priority = 50
-    chunk_size = 1
-    jobInfo = {}
-    pluginInfo = {}
-    group = None
-
-    initialStatus = "active"
-
-    @classmethod
-    def apply_settings(cls, project_settings):
-        settings = project_settings["deadline"]["publish"]["MaxSubmitDeadline"]  # noqa
-
-        # Take some defaults from settings
-        cls.use_published = settings.get("use_published",
-                                         cls.use_published)
-        cls.priority = settings.get("priority",
-                                    cls.priority)
-        cls.chuck_size = settings.get("chunk_size", cls.chunk_size)
-        cls.group = settings.get("group", cls.group)
-        cls.initialStatus = settings.get("initialStatus", cls.initialStatus)
-
-    # TODO: multiple camera instance, separate job infos
-    def get_job_info(self):
-        job_info = DeadlineJobInfo(Plugin="3dsmax")
-
-        # todo: test whether this works for existing production cases
-        #       where custom jobInfo was stored in the project settings
-        job_info.update(self.jobInfo)
+    def get_job_info(self, job_info=None):
 
         instance = self._instance
-        context = instance.context
-        # Always use the original work file name for the Job name even when
-        # rendering is done from the published Work File. The original work
-        # file name is clearer because it can also have subversion strings,
-        # etc. which are stripped for the published file.
+        job_info.Plugin = instance.data.get("plugin") or "3dsmax"
 
-        src_filepath = context.data["currentFile"]
-        src_filename = os.path.basename(src_filepath)
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-        job_info.Name = "%s - %s [%sx%s]" % (src_filename, instance.name, width, height)
-        job_info.BatchName = src_filename
-        job_info.Plugin = instance.data["plugin"]
-        job_info.UserName = context.data.get("deadlineUser", getpass.getuser())
-        job_info.EnableAutoTimeout = False
+        job_info.EnableAutoTimeout = True
         # Deadline requires integers in frame range
 
         use_preview_frames = instance.data["use_preview_frames"]
@@ -105,8 +58,10 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             frames = self._get_non_preview_frames()
         job_info.Frames = frames
 
-        job_info.Pool = instance.data.get("primaryPool")
-        job_info.SecondaryPool = instance.data.get("secondaryPool")
+        # do not add expected files for multiCamera
+        if instance.data.get("multiCamera"):
+            job_info.OutputDirectory.clear()
+            job_info.OutputFilename.clear()
 
         if use_preview_frames:
             job_info.JobDependencies = instance.data.get("previewDeadlineSubmissionJob")
@@ -114,57 +69,6 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             self.log.debug(f"instance.data.get('previewDeadlineSubmissionJob'): {instance.data.get('previewDeadlineSubmissionJob')}")
             self.log.debug("===============================================")
 
-        # attr_values = self.get_attr_values_from_data(instance.data)
-
-        job_info.ChunkSize = instance.data["chunk_size"]
-        job_info.Comment = context.data.get("comment")
-        job_info.Priority = instance.data["priority"]
-        job_info.Group = instance.data["group"]
-        job_info.LimitGroups = "redshift"
-        job_info.InitialStatus = instance.data["initial_status"]
-
-        # Add options from RenderGlobals
-        render_globals = instance.data.get("renderGlobals", {})
-        job_info.update(render_globals)
-
-        keys = [
-            "FTRACK_API_KEY",
-            "FTRACK_API_USER",
-            "FTRACK_SERVER",
-            "OPENPYPE_SG_USER",
-            "AYON_BUNDLE_NAME",
-            "AYON_DEFAULT_SETTINGS_VARIANT",
-            "AYON_PROJECT_NAME",
-            "AYON_FOLDER_PATH",
-            "AYON_TASK_NAME",
-            "AYON_WORKDIR",
-            "AYON_APP_NAME",
-            "AYON_IN_TESTS",
-        ]
-
-        environment = {
-            key: os.environ[key]
-            for key in keys
-            if key in os.environ
-        }
-
-        for key in keys:
-            value = environment.get(key)
-            if not value:
-                continue
-            job_info.EnvironmentKeyValue[key] = value
-
-        # to recognize render jobs
-        job_info.add_render_job_env_var()
-        job_info.EnvironmentKeyValue["AYON_LOG_NO_COLORS"] = "1"
-
-        # Add list of expected files to job
-        # ---------------------------------
-        if not instance.data.get("multiCamera"):
-            exp = instance.data.get("expectedFiles")
-            for filepath in self._iter_expected_files(exp):
-                job_info.OutputDirectory += os.path.dirname(filepath)
-                job_info.OutputFilename += os.path.basename(filepath)
 
         return job_info
 
@@ -178,11 +82,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             IgnoreInputs=True
         )
 
-        plugin_payload = attr.asdict(plugin_info)
-
-        # Patching with pluginInfo from settings
-        for key, value in self.pluginInfo.items():
-            plugin_payload[key] = value
+        plugin_payload = asdict(plugin_info)
 
         return plugin_payload
 
@@ -337,7 +237,8 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             scene_filename = os.path.basename(scene_filepath)
             scene_directory = os.path.dirname(scene_filepath)
             current_filename, ext = os.path.splitext(scene_filename)
-            camera_scene_name = f"{current_filename}_{camera}{ext}"
+            camera_name = camera.replace(":", "_")
+            camera_scene_name = f"{current_filename}_{camera_name}{ext}"
             camera_scene_filepath = os.path.join(
                 scene_directory, f"_{current_filename}", camera_scene_name)
             plugin_data["SceneFile"] = camera_scene_filepath
