@@ -47,6 +47,13 @@ class CollectJobInfo(pyblish.api.InstancePlugin, AYONPyblishPluginMixin):
             self.log.debug("Should not be processed on farm, skipping.")
             return
 
+        # ===============================================
+        import pprint
+        data = pprint.pformat(instance.data)
+        self.log.debug("======================================")
+        self.log.debug(data)
+        self.log.debug("======================================")
+        # ===============================================
         attr_values = self._get_jobinfo_defaults(instance)
 
         attr_values.update(self.get_attr_values_from_data(instance.data))
@@ -191,6 +198,7 @@ class CollectJobInfo(pyblish.api.InstancePlugin, AYONPyblishPluginMixin):
                 # "product_type": product_type
             }
         )
+
         if not profile:
             return []
         overrides = set(profile["overrides"])

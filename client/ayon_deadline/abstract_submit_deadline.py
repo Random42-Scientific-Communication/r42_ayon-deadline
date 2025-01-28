@@ -135,9 +135,10 @@ class AbstractSubmitDeadline(
 
         # -------------------------------------------------------
         if state != "rest":
-            self.job_info = self.get_job_info()
-            self.plugin_info = self.get_plugin_info()
-            self.aux_files = self.get_aux_files()
+            self.log.info("\nSTATE IS NOT REST\n")
+            # self.job_info = self.get_job_info()
+            # self.plugin_info = self.get_plugin_info()
+            # self.aux_files = self.get_aux_files()
 
             job_id = self.process_submission()
             self.log.info("Submitted job to Deadline: {}.".format(job_id))
@@ -146,7 +147,7 @@ class AbstractSubmitDeadline(
             job_id = self._instance.data["previewDeadlineSubmissionJob"]
             self.job_info = self.get_job_info(dependency_job_ids=[job_id])
             self.plugin_info = self.get_plugin_info(job_type="render")
-            self.aux_files = self.get_aux_files()
+            # self.aux_files = self.get_aux_files()
 
             job_id = self.process_submission()
             self.log.info("Submitted <rest of frames> job to Deadline: {}.".format(job_id))

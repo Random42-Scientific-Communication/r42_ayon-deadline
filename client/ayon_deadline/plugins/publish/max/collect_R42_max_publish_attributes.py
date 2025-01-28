@@ -51,6 +51,7 @@ class CollectR42MaxPublishAttributes(pyblish.api.InstancePlugin,
 
     @classmethod
     def get_attribute_defs(cls):
+        return
         defs = super(CollectR42MaxPublishAttributes, cls).get_attribute_defs()
         defs.extend([
             TextDef("group",
