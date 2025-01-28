@@ -167,12 +167,13 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         if instance_version != 1:
             override_version = instance_version
 
-        # ========================== R42 Modify ======================================
+        # ========================== R42 Custom ======================================
         try:
             use_preview_frames = instance.data["use_preview_frames"]
         except KeyError:
             use_preview_frames = False
 
+        # _get_publish_folder is an ayon function, R42 addition is the use_preview_frames option
         output_dir = self._get_publish_folder(
             anatomy,
             deepcopy(instance.data["anatomyData"]),
@@ -183,7 +184,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             override_version,
             use_preview_frames
         )
-        # ========================== R42 Modify ======================================
+        # ========================== R42 Custom ======================================
 
         environment = get_instance_job_envs(instance)
         environment.update(JobType.PUBLISH.get_job_env())
@@ -439,13 +440,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         if audio_file and os.path.isfile(audio_file):
             publish_job.update({"audio": audio_file})
 
-        metadata_path, rootless_metadata_path = \
-            create_metadata_path(instance, anatomy)
-
-        # ====================== r42 custom ==================================
+        # ====================== R42 Custom ==================================
         publish_job = self._modify_json_data(instance, publish_job)
-        # ====================== r42 custom ==================================
-
+        # ====================== R42 Custom ==================================
         with open(metadata_path, "w") as f:
             json.dump(publish_job, f, indent=4, sort_keys=True)
 
@@ -504,8 +501,10 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                     project_settings=context.data["project_settings"]
                 )
 
+        # ========================== R42 Custom ======================================
         if r42_has_preview:
             version += 1
+        # ========================== R42 Custom ======================================
 
         host_name = context.data["hostName"]
         task_info = template_data.get("task") or {}
