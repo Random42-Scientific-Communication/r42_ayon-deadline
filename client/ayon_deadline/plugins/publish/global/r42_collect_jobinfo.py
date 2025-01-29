@@ -19,7 +19,7 @@ class CollectR42JobInfo(pyblish.api.InstancePlugin,
     We collect preview renders attributes here
     """
 
-    label = "Collect R42 Preview Attributes"
+    label = "R42 Collect Preview Attributes"
     hosts = ['max', 'houdini', 'blender']
     families = ["maxrender", "redshift_rop", "mantra_rop", "karma_rop"]
     targets = ["local"]

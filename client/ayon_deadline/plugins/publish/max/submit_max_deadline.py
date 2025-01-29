@@ -33,8 +33,8 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
     hosts = ["max"]
     families = ["maxrender"]
     targets = ["local"]
-    order = pyblish.api.IntegratorOrder + 0.298
     settings_category = "deadline"
+    order = pyblish.api.IntegratorOrder + 0.298
 
     def get_job_info(self, job_info=None):
 
@@ -42,13 +42,20 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         job_info.Plugin = instance.data.get("plugin") or "3dsmax"
 
         job_info.EnableAutoTimeout = True
+
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = instance.data["publish_attributes"]["CollectR42JobInfo"]
+        use_preview_frames = r42_preview_data["use_preview_frames"]
+        self.log.debug("===============================================")
+        self.log.debug(f" <R42> use_preview_frames: {use_preview_frames}")
+        import pprint
+        data = pprint.pformat(instance.data)
+        self.log.debug(f" <R42> data: \n{data}\n")
+        self.log.debug("===============================================")
+        # ========================== R42 Custom ======================================
+        # ========================== R42 Custom ======================================
         # Deadline requires integers in frame range
-
-        use_preview_frames = instance.data["use_preview_frames"]
-        self.log.debug("===============================================")
-        self.log.debug(f"use_preview_frames: {use_preview_frames}")
-        self.log.debug("===============================================")
-
         if not use_preview_frames:
             frames = "{start}-{end}".format(
                 start=int(instance.data["frameStart"]),
@@ -57,18 +64,21 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         else:
             frames = self._get_non_preview_frames()
         job_info.Frames = frames
+        # ========================== R42 Custom ======================================
 
         # do not add expected files for multiCamera
         if instance.data.get("multiCamera"):
             job_info.OutputDirectory.clear()
             job_info.OutputFilename.clear()
 
+        # ========================== R42 Custom ======================================
+        # Get the preview submit job dependency
         if use_preview_frames:
             job_info.JobDependencies = instance.data.get("previewDeadlineSubmissionJob")
             self.log.debug("===============================================")
             self.log.debug(f"instance.data.get('previewDeadlineSubmissionJob'): {instance.data.get('previewDeadlineSubmissionJob')}")
             self.log.debug("===============================================")
-
+        # ========================== R42 Custom ======================================
 
         return job_info
 
@@ -142,6 +152,13 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         plugin_info = copy.deepcopy(self.plugin_info)
         plugin_data = {}
 
+        # ========================== R42 Custom ======================================
+        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
+        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        job_info.Name = "%s [%sx%s]" % (
+            job_info.Name, width, height)
+        # ========================== R42 Custom ======================================
+
         multipass = get_multipass_setting(project_settings)
         if multipass:
             plugin_data["DisableMultipass"] = 0
@@ -207,10 +224,12 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
+        # ========================== R42 Custom ======================================
         height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
         width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
         job_info.Name = "%s - %s - %s [%sx%s]" % (
             src_filename, instance.name, camera, width, height)
+        # ========================== R42 Custom ======================================
         for filepath in self._iter_expected_files(exp):
             if camera not in filepath:
                 continue
@@ -349,34 +368,3 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             for file in exp:
                 yield file
 
-    @classmethod
-    def get_attribute_defs(cls):
-        defs = super(MaxSubmitDeadline, cls).get_attribute_defs()
-
-        '''
-        defs.extend([
-            BoolDef("use_published",
-                    default=cls.use_published,
-                    label="Use Published Scene"),
-
-            NumberDef("priority",
-                      minimum=1,
-                      maximum=250,
-                      decimals=0,
-                      default=cls.priority,
-                      label="Priority"),
-
-            NumberDef("chunkSize",
-                      minimum=1,
-                      maximum=50,
-                      decimals=0,
-                      default=cls.chunk_size,
-                      label="Frame Per Task"),
-
-            TextDef("group",
-                    default=cls.group,
-                    label="Group Name"),
-        ])
-        '''
-
-        return defs

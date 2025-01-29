@@ -128,30 +128,23 @@ class AbstractSubmitDeadline(
         if plugin_info_data:
             self.apply_additional_plugin_info(plugin_info_data)
 
-        job_id = self.process_submission()
-        self.log.info(f"Submitted job to Deadline: {job_id}.")
-
-        instance.data["deadline"]["job_info"] = deepcopy(self.job_info)
-
-        # -------------------------------------------------------
+        # ========================== R42 Custom ======================================
         if state != "rest":
             self.log.info("\nSTATE IS NOT REST\n")
-            # self.job_info = self.get_job_info()
-            # self.plugin_info = self.get_plugin_info()
-            # self.aux_files = self.get_aux_files()
-
             job_id = self.process_submission()
             self.log.info("Submitted job to Deadline: {}.".format(job_id))
         else:
             # Assign job_id
+            self.log.info("\nSTATE IS REST\n")
             job_id = self._instance.data["previewDeadlineSubmissionJob"]
             self.job_info = self.get_job_info(dependency_job_ids=[job_id])
             self.plugin_info = self.get_plugin_info(job_type="render")
-            # self.aux_files = self.get_aux_files()
 
             job_id = self.process_submission()
             self.log.info("Submitted <rest of frames> job to Deadline: {}.".format(job_id))
-        # -------------------------------------------------------
+        # ========================== R42 Custom ======================================
+
+        instance.data["deadline"]["job_info"] = deepcopy(self.job_info)
 
         # TODO: Find a way that's more generic and not render type specific
         if instance.data.get("splitRender") and state != "rest":
