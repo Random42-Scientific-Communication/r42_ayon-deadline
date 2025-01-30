@@ -94,16 +94,9 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
     targets = ["local"]
 
-    hosts = ["fusion", "max", "houdini", "blender"]
+    hosts = ["max", "houdini", "blender"]
 
-    families = ["render", "render.farm", "render.frames_farm",
-                "prerender", "prerender.farm", "prerender.frames_farm",
-                "renderlayer", "imagesequence", "image",
-                "vrayscene", "maxrender",
-                "arnold_rop", "mantra_rop",
-                "karma_rop", "vray_rop",
-                "redshift_rop", "usdrender"]
-
+    families = ["deadline.submit.publish.job"]
     settings_category = "deadline"
 
     aov_filter = [
@@ -197,13 +190,15 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
         # ========================== R42 Custom ======================================
         r42_preview_attributes = r42.get_r42_preview_settings(instance)
-        priority = (
-                self.deadline_priority
-                or r42_preview_attributes.get("preview_priority", 99)
-        )
 
         # TODO: initial_status should draw from preview initial_status
         initial_status = r42_preview_attributes.get("preview_initial_status", "Active")
+
+        # Draw Settings from server for publishing job
+        self.deadline_group = instance.data["server_publish_group"]
+        priority = instance.data["server_publish_priority"]
+        self.deadline_pool = instance.data["server_publish_pool"]
+
         # ========================== R42 Custom ======================================
 
         batch_name = self._get_batch_name(instance, render_job)
@@ -236,6 +231,12 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         deadline_addon: DeadlineAddon = (
             context.data["ayonAddonsManager"]["deadline"]
         )
+
+        self.log.debug("=============================")
+        self.log.debug(f"group: {self.deadline_group}")
+        self.log.debug(f"priority: {priority}")
+        self.log.debug(f"pool: {self.deadline_pool or None}")
+        self.log.debug("=============================")
 
         job_info = DeadlineJobInfo(
             Name=job_name,
@@ -555,6 +556,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         return render_dir_template.format_strict(template_data)
 
+    '''
     @classmethod
     def get_attribute_defs(cls):
         return [
@@ -563,3 +565,4 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                     items=["Active", "Suspended"],
                     default="Active")
         ]
+    '''

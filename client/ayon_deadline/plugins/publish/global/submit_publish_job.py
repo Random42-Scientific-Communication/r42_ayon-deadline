@@ -200,7 +200,16 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
 
         instance_settings = self.get_attr_values_from_data(instance.data)
-        initial_status = instance_settings.get("publishJobState", "Active")
+
+
+        # ========================== R42 Custom ======================================
+        # initial_status = instance_settings.get("publishJobState", "Active")
+
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+        # Set Initial Status Here
+        initial_status = r42_preview_data["initial_status"]
+        # ========================== R42 Custom ======================================
 
         batch_name = self._get_batch_name(instance, render_job)
         username = self._get_username(instance, render_job)
@@ -227,6 +236,12 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         deadline_addon: DeadlineAddon = (
             context.data["ayonAddonsManager"]["deadline"]
         )
+
+        self.log.debug("=============================")
+        self.log.debug(f"group: {self.deadline_group}")
+        self.log.debug(f"priority: {priority}")
+        self.log.debug(f"pool: {self.deadline_pool or None}")
+        self.log.debug("=============================")
 
         job_info = DeadlineJobInfo(
             Name=job_name,
@@ -538,6 +553,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         return render_dir_template.format_strict(template_data)
 
+    '''
     @classmethod
     def get_attribute_defs(cls):
         return [
@@ -546,3 +562,4 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                     items=["Active", "Suspended"],
                     default="Active")
         ]
+    '''

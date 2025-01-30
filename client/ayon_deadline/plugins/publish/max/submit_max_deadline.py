@@ -61,6 +61,9 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         else:
             frames = r42.get_non_preview_frames(instance)
         job_info.Frames = frames
+
+        # Set Initial Status Here
+        job_info.InitialStatus = r42_preview_data["initial_status"]
         # ========================== R42 Custom ======================================
 
         # do not add expected files for multiCamera

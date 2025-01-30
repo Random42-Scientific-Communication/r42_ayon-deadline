@@ -3,6 +3,7 @@ Custom Static Functions for R42 Use
 """
 import os
 import pprint
+
 # ========================== R42 Custom ======================================
 
 def get_job_settings(instance):

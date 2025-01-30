@@ -240,7 +240,7 @@ class HoudiniSubmitDeadline(
             )
 
         # ========================== R42 Custom ======================================
-        job_info.InitialStatus = instance.data["publishJobState"]
+        job_info.InitialStatus = r42_preview_data["initial_status"]
         # ========================== R42 Custom ======================================
 
         # TODO change to expectedFiles??
