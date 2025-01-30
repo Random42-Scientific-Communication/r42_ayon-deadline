@@ -87,7 +87,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
     """
 
-    label = "R42 Submit Preview Image Publishing job to Deadline"
+    label = "r42 Submit Preview Image Publishing job to Deadline"
     order = pyblish.api.IntegratorOrder + 0.25
     icon = "tractor"
     optional = True
@@ -231,12 +231,6 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         deadline_addon: DeadlineAddon = (
             context.data["ayonAddonsManager"]["deadline"]
         )
-
-        self.log.debug("=============================")
-        self.log.debug(f"group: {self.deadline_group}")
-        self.log.debug(f"priority: {priority}")
-        self.log.debug(f"pool: {self.deadline_pool or None}")
-        self.log.debug("=============================")
 
         job_info = DeadlineJobInfo(
             Name=job_name,
@@ -556,6 +550,8 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         return render_dir_template.format_strict(template_data)
 
+    # ====================== R42 Custom ==================================
+    # This is donein the r42_collect_jobinfo.py
     '''
     @classmethod
     def get_attribute_defs(cls):
@@ -566,3 +562,4 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
                     default="Active")
         ]
     '''
+    # ====================== R42 Custom ==================================

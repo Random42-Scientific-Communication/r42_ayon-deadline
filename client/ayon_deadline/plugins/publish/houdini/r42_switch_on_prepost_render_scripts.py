@@ -7,7 +7,7 @@ class R42SwitchOnRenderScripts(pyblish.api.InstancePlugin):
     """We turn on all temporarily turned off pre/post render scripts
     """
 
-    label = "R42 Switch On PrePost Render Scripts"
+    label = "r42 Switch On PrePost Render Scripts"
     order = pyblish.api.IntegratorOrder + 1
     hosts = ["houdini"]
     families = ["usdrender",

@@ -15,7 +15,7 @@ class R42SwitchOffRenderScripts(pyblish.api.InstancePlugin,
     to the farm
     """
 
-    label = "R42 Switch Off PrePost Render Scripts"
+    label = "r42 Switch Off PrePost Render Scripts"
     order = pyblish.api.ExtractorOrder - 0.5
     hosts = ["houdini"]
     families = ["usdrender",
