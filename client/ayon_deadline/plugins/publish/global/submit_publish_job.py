@@ -448,6 +448,9 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         # ====================== R42 Custom ==================================
         publish_job = r42.modify_json_data(instance, publish_job)
         # ====================== R42 Custom ==================================
+        
+        self.log.debug(f"Writing metadata json to '{metadata_path}'")
+        
         with open(metadata_path, "w") as f:
             json.dump(publish_job, f, indent=4, sort_keys=True)
 
