@@ -17,6 +17,9 @@ import pyblish.api
 from ayon_max.api.lib_rendersettings import RenderSettings
 from ayon_deadline import abstract_submit_deadline
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
 
 @dataclass
 class MaxPluginInfo(object):
@@ -45,11 +48,9 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         # ========================== R42 Custom ======================================
         # Get custom preview frames data
-        r42_preview_data = self._get_r42_preview_settings(instance)
-        # ========================== R42 Custom ======================================
-        # ========================== R42 Custom ======================================
-        # Set Frame Range and Initial Status Here
-        # Deadline requires integers in frame range
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+
+        # Set Frame Range and Initial Status Here (Deadline requires integers in frame range)
         preview_frame_skip = r42_preview_data["preview_frame_skip"]
         frames = "{start}-{end}x{skip}".format(
             start=int(instance.data["frameStart"]),
@@ -57,6 +58,8 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             skip=int(preview_frame_skip)
         )
         job_info.Frames = frames
+
+        # Set Initial Status Here
         job_info.InitialStatus = r42_preview_data["preview_initial_status"]
         # ========================== R42 Custom ======================================
 
@@ -85,7 +88,7 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         instance = self._instance
         # ========================== R42 Custom ======================================
         # Get custom preview frames data
-        r42_preview_data = self._get_r42_preview_settings(instance)
+        r42_preview_data = r42.get_r42_preview_settings(instance)
         use_preview_frames = r42_preview_data["use_preview_frames"]
 
         if not use_preview_frames:
@@ -127,11 +130,7 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         else:
             payload = self._use_published_name(payload_data, project_settings)
             job_info, plugin_info = payload
-            self.log.debug("-----------------------------------")
-            import pprint
-            job_data = pprint.pformat(job_info)
-            self.log.debug(job_data)
-            self.log.debug("-----------------------------------")
+
             self.submit(
                 self.assemble_payload(job_info, plugin_info),
                 auth=auth,
@@ -152,8 +151,8 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         plugin_data = {}
 
         # ========================== R42 Custom ======================================
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        # Modify name of job as seen on deadline
+        height, width = r42.get_height_width(instance)
         job_info.Name = "%s [%sx%s](Preview-Frames)" % (
             job_info.Name, width, height)
         # ========================== R42 Custom ======================================
@@ -224,8 +223,8 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
         # ========================== R42 Custom ======================================
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        # Modify name of job as seen on deadline
+        height, width = r42.get_height_width(instance)
         job_info.Name = "%s - %s - %s [%sx%s](Preview-Frames)" % (
             src_filename, instance.name, camera, width, height)
         # ========================== R42 Custom ======================================
@@ -234,12 +233,6 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
                 continue
             job_info.OutputDirectory += os.path.dirname(filepath)
             job_info.OutputFilename += os.path.basename(filepath)
-
-        import pprint
-        data = pprint.pformat(job_info)
-        self.log.debug("========================================")
-        self.log.debug(data)
-        self.log.debug("========================================")
 
         return job_info
         # set the output filepath with the relative camera
@@ -341,11 +334,6 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             replace_in_path = False
         return replace_with_published_scene_path(
             instance, replace_in_path)
-
-    # ====================== R42 Custom ==================================
-    def _get_r42_preview_settings(self, instance):
-        return instance.data['publish_attributes']['CollectR42JobInfo']
-    # ====================== R42 Custom ==================================
 
     @staticmethod
     def _iter_expected_files(exp):

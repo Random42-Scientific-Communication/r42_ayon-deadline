@@ -27,6 +27,10 @@ from ayon_deadline.lib import (
     get_instance_job_envs,
 )
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
+
 def get_resource_files(resources, frame_range=None):
     """Get resource files at given path.
 
@@ -164,7 +168,9 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         """
         data = instance.data.copy()
         product_name = data["productName"]
+        # ========================== R42 Custom ======================================
         job_name = "Publish - {} - (Preview-Frames)".format(product_name)
+        # ========================== R42 Custom ======================================
 
         context = instance.context
         anatomy = context.data["anatomy"]
@@ -190,27 +196,22 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         environment.update(JobType.PUBLISH.get_job_env())
 
         # ========================== R42 Custom ======================================
-        r42_preview_attributes = self._get_r42_preview_settings(instance)
+        r42_preview_attributes = r42.get_r42_preview_settings(instance)
         priority = (
                 self.deadline_priority
                 or r42_preview_attributes.get("preview_priority", 99)
         )
-        '''
-        self.deadline_priority = instance.context.data["project_settings"]["deadline"]["publish"][
-            "ProcessSubmittedJobOnFarm"]["deadline_priority"]
-        priority = self.deadline_priority or instance.data.get("preview_priority", 99)
-        '''
 
-        instance_settings = self.get_attr_values_from_data(instance.data)
         # TODO: initial_status should draw from preview initial_status
         initial_status = r42_preview_attributes.get("preview_initial_status", "Active")
-        # initial_status = instance_settings.get("publishJobState", "Active")
+        # ========================== R42 Custom ======================================
 
         batch_name = self._get_batch_name(instance, render_job)
         username = self._get_username(instance, render_job)
         dependency_ids = self._get_dependency_ids(instance, render_job)
 
-        rootless_metadata_path = self._modify_json_path(rootless_metadata_path)
+        # ========================== R42 Custom ======================================
+        rootless_metadata_path = r42.modify_json_path(rootless_metadata_path, self.log)
         # ========================== R42 Custom ======================================
 
         args = [
@@ -253,7 +254,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         job_info.EnvironmentKeyValue.update(environment)
         # ========================== R42 Custom ======================================
-        # Store the publish job id
+        # Store the preview publish job id
         deadline_publish_job_id = deadline_addon.submit_ayon_plugin_job(
             server_name,
             args,
@@ -263,7 +264,6 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         instance.data["previewDeadlineSubmissionJob"] = deadline_publish_job_id
 
         return deadline_publish_job_id
-
         # ========================== R42 Custom ======================================
 
     def _get_batch_name(self, instance, render_job):
@@ -317,7 +317,7 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
         """
         # ========================== R42 Custom ======================================
-        r42_preview_attributes = self._get_r42_preview_settings(instance)
+        r42_preview_attributes = r42.get_r42_preview_settings(instance)
 
         if not r42_preview_attributes.get("use_preview_frames"):
             self.log.debug("Skipping preview submit.")
@@ -470,8 +470,8 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             publish_job.update({"audio": audio_file})
 
         # ====================== R42 Custom ==================================
-        metadata_path = self._modify_json_path(metadata_path)
-        publish_job = self._modify_preview_json_data(instance, publish_job)
+        metadata_path = r42.modify_json_path(metadata_path)
+        publish_job = r42.modify_preview_json_data(instance, publish_job, self.log)
         # ====================== R42 Custom ==================================
 
         with open(metadata_path, "w") as f:
@@ -555,45 +555,11 @@ class PreviewProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         )
         return render_dir_template.format_strict(template_data)
 
-    # ====================== R42 Custom ==================================
-    def _modify_preview_json_data(self, instance, publish_job):
-        r42_preview_attributes = self._get_r42_preview_settings(instance)
-        preview_frame_skip = r42_preview_attributes["preview_frame_skip"]
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-
-        publish_instances = publish_job["instances"]
-        for i in range(0, len(publish_instances)):
-            publish_instance = publish_instances[i]
-            publish_job["instances"][i]["resolutionHeight"] = height
-            publish_job["instances"][i]["resolutionWidth"] = width
-            rep = publish_instance["representations"]
-            for r in range(0, len(rep)):
-                out_file_list = rep[r]["files"]
-                preview_file_list = []
-                for f in range(0, len(out_file_list), preview_frame_skip):
-                    current_file = out_file_list[f]
-                    preview_file_list.append(current_file)
-                publish_job["instances"][i]["representations"][r]["files"] = preview_file_list
-
-        return publish_job
-
-    def _modify_json_path(self, input_path):
-        basename = os.path.basename(input_path)
-        splitext = os.path.splitext(basename)
-        new_basename = f"{splitext[0]}_preview{splitext[1]}"
-        new_path = os.path.join(os.path.dirname(input_path), new_basename)
-        return new_path
-
-    def _get_r42_preview_settings(self, instance):
-        return instance.data['publish_attributes']['CollectR42JobInfo']
-    # ====================== R42 Custom ==================================
-
     @classmethod
     def get_attribute_defs(cls):
         return [
             EnumDef("publishJobState",
-                    label="Preview Publish Job State",
+                    label="Publish Job State",
                     items=["Active", "Suspended"],
                     default="Active")
         ]

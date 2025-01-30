@@ -12,6 +12,10 @@ from ayon_core.lib import (
 )
 from ayon_deadline import abstract_submit_deadline
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
+
 
 @dataclass
 class DeadlinePluginInfo:
@@ -99,8 +103,6 @@ class HoudiniSubmitDeadline(
     targets = ["local"]
     settings_category = "deadline"
 
-    # This part is being done in collect_R42_houdini_publish_attributes
-    '''
     # presets
     export_priority = 50
     export_chunk_size = 10
@@ -108,11 +110,8 @@ class HoudiniSubmitDeadline(
     export_limits = ""
     export_machine_limit = 0
 
-    # This part is being done in collect_R42_houdini_publish_attributes
     @classmethod
     def get_attribute_defs(cls):
-        return[]
-        '''
         return [
             NumberDef(
                 "export_priority",
@@ -147,7 +146,6 @@ class HoudiniSubmitDeadline(
                 tooltip="maximum number of machines for this job."
             ),
         ]
-        '''
 
     def get_job_info(self, dependency_job_ids=None, job_info=None):
 
@@ -178,20 +176,25 @@ class HoudiniSubmitDeadline(
             plugin = "Houdini"
             if split_render_job:
                 job_type = "[EXPORT IFD]"
+
         job_info.Plugin = plugin
 
         filepath = context.data["currentFile"]
         filename = os.path.basename(filepath)
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        # ========================== R42 Custom ======================================
+        height, width = r42.get_height_width(instance)
         job_info.Name = "{} - {} {} [{}x{}]".format(filename, instance.name, job_type, width, height)
+        # ========================== R42 Custom ======================================
         job_info.BatchName = filename
 
         if is_in_tests():
             job_info.BatchName += datetime.now().strftime("%d%m%Y%H%M%S")
 
         # Deadline requires integers in frame range
-        use_preview_frames = instance.data["use_preview_frames"]
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+        use_preview_frames = r42_preview_data["use_preview_frames"]
 
         if not use_preview_frames:
             start = instance.data["frameStartHandle"]
@@ -202,22 +205,21 @@ class HoudiniSubmitDeadline(
                 step=int(instance.data["byFrameStep"]),
             )
         else:
-            frames = self._get_non_preview_frames()
-
+            frames = r42.get_non_preview_frames(instance)
+        # ========================== R42 Custom ======================================
         job_info.Frames = frames
 
         # Make sure we make job frame dependent so render tasks pick up a soon
         # as export tasks are done
         if split_render_job and not is_export_job:
-            job_info.IsFrameDependent = True
+            job_info.IsFrameDependent = bool(instance.data.get(
+                "splitRenderFrameDependent", True))
 
+        # ========================== R42 Custom ======================================
         # If use preview frames, we want the preview jobs to be done first
         if use_preview_frames:
             job_info.IsFrameDependent = False
-
-        self.log.debug("====================================")
-        self.log.debug(f"Job Info Frame Dependent = {job_info.IsFrameDependent}")
-        self.log.debug("====================================")
+        # ========================== R42 Custom ======================================
 
         attribute_values = self.get_attr_values_from_data(instance.data)
         if split_render_job and is_export_job:
@@ -237,6 +239,9 @@ class HoudiniSubmitDeadline(
                 "export_machine_limit", self.export_machine_limit
             )
 
+        # ========================== R42 Custom ======================================
+        job_info.InitialStatus = instance.data["publishJobState"]
+        # ========================== R42 Custom ======================================
 
         # TODO change to expectedFiles??
         for i, filepath in enumerate(instance.data["files"]):
@@ -316,36 +321,21 @@ class HoudiniSubmitDeadline(
 
         return asdict(plugin_info)
 
-    def _get_non_preview_frames(self):
-        instance = self._instance
-        start = int(instance.data["frameStart"])
-        end = int(instance.data["frameEnd"])
-        skip = int(instance.data['preview_frame_skip'])
-
-        preview_frames = []
-        rest_of_frames = []
-
-        for i in range(start, end + 1, skip):
-            preview_frames.append(i)
-
-        for i in range(start, end + 1):
-            rest_of_frames.append(i)
-
-        rest_of_frames = list(set(rest_of_frames) - set(preview_frames))
-        frame_str = ','.join([str(x) for x in rest_of_frames])
-        return frame_str
-
     def process(self, instance):
         if not instance.data["farm"]:
             self.log.debug("Render on farm is disabled. "
                            "Skipping deadline submission.")
             return
 
-        use_preview_frames = instance.data["use_preview_frames"]
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+        use_preview_frames = r42_preview_data["use_preview_frames"]
         if not use_preview_frames:
             super(HoudiniSubmitDeadline, self).process(instance)
         else:
             super(HoudiniSubmitDeadline, self).process(instance, "rest")
+        # ========================== R42 Custom ======================================
 
         # TODO: Avoid the need for this logic here, needed for submit publish
         # Store output dir for unified publisher (filesequence)

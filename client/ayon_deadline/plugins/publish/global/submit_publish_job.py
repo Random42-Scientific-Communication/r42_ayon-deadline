@@ -27,6 +27,9 @@ from ayon_deadline.lib import (
     get_instance_job_envs,
 )
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
 
 def get_resource_files(resources, frame_range=None):
     """Get resource files at given path.
@@ -168,8 +171,10 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             override_version = instance_version
 
         # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
         try:
-            use_preview_frames = instance.data["use_preview_frames"]
+            use_preview_frames = r42_preview_data["use_preview_frames"]
         except KeyError:
             use_preview_frames = False
 
@@ -441,7 +446,7 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             publish_job.update({"audio": audio_file})
 
         # ====================== R42 Custom ==================================
-        publish_job = self._modify_json_data(instance, publish_job)
+        publish_job = r42.modify_json_data(instance, publish_job)
         # ====================== R42 Custom ==================================
         with open(metadata_path, "w") as f:
             json.dump(publish_job, f, indent=4, sort_keys=True)
@@ -529,17 +534,6 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
             "publish", template_name, "directory"
         )
         return render_dir_template.format_strict(template_data)
-
-    def _modify_json_data(self, instance, publish_job):
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-
-        publish_instances = publish_job["instances"]
-        for i in range(0, len(publish_instances)):
-            publish_job["instances"][i]["resolutionHeight"] = height
-            publish_job["instances"][i]["resolutionWidth"] = width
-
-        return publish_job
 
     @classmethod
     def get_attribute_defs(cls):

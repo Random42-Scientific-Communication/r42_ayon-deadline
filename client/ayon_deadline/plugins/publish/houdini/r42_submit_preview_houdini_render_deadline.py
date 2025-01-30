@@ -1,6 +1,5 @@
 import os
-import attr
-import getpass
+from dataclasses import dataclass, field, asdict
 from datetime import datetime
 
 import pyblish.api
@@ -12,72 +11,68 @@ from ayon_core.lib import (
     NumberDef
 )
 from ayon_deadline import abstract_submit_deadline
-from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
 
-try:
-    from ayon_usd import get_usd_pinning_envs
-except ImportError:
-    # usd is not enabled or available, so we just mock the function
-    def get_usd_pinning_envs(instance):
-        return {}
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
 
 
-@attr.s
-class DeadlinePluginInfo():
-    SceneFile = attr.ib(default=None)
-    OutputDriver = attr.ib(default=None)
-    Version = attr.ib(default=None)
-    IgnoreInputs = attr.ib(default=True)
+@dataclass
+class DeadlinePluginInfo:
+    SceneFile: str = field(default=None)
+    OutputDriver: str = field(default=None)
+    Version: str = field(default=None)
+    IgnoreInputs: bool = field(default=True)
 
 
-@attr.s
-class ArnoldRenderDeadlinePluginInfo():
-    InputFile = attr.ib(default=None)
-    Verbose = attr.ib(default=4)
+@dataclass
+class ArnoldRenderDeadlinePluginInfo:
+    InputFile: str = field(default=None)
+    Verbose: int = field(default=4)
 
 
-@attr.s
-class MantraRenderDeadlinePluginInfo():
-    SceneFile = attr.ib(default=None)
-    Version = attr.ib(default=None)
+@dataclass
+class MantraRenderDeadlinePluginInfo:
+    SceneFile: str = field(default=None)
+    Version: str = field(default=None)
 
 
-@attr.s
-class VrayRenderPluginInfo():
-    InputFilename = attr.ib(default=None)
-    SeparateFilesPerFrame = attr.ib(default=True)
+@dataclass
+class VrayRenderPluginInfo:
+    InputFilename: str = field(default=None)
+    SeparateFilesPerFrame: bool = field(default=True)
 
 
-@attr.s
-class RedshiftRenderPluginInfo():
-    SceneFile = attr.ib(default=None)
+@dataclass
+class RedshiftRenderPluginInfo:
+    SceneFile: str = field(default=None)
     # Use "1" as the default Redshift version just because it
     # default fallback version in Deadline's Redshift plugin
     # if no version was specified
-    Version = attr.ib(default="1")
+    Version: str = field(default="1")
 
-@attr.s
-class HuskStandalonePluginInfo():
+@dataclass
+class HuskStandalonePluginInfo:
     """Requires Deadline Husk Standalone Plugin.
     See Deadline Plug-in:
         https://github.com/BigRoy/HuskStandaloneSubmitter
     Also see Husk options here:
         https://www.sidefx.com/docs/houdini/ref/utils/husk.html
     """
-    SceneFile = attr.ib()
+    SceneFile: str = field()
     # TODO: Below parameters are only supported by custom version of the plugin
-    Renderer = attr.ib(default=None)
-    RenderSettings = attr.ib(default="/Render/rendersettings")
-    Purpose = attr.ib(default="geometry,render")
-    Complexity = attr.ib(default="veryhigh")
-    Snapshot = attr.ib(default=-1)
-    LogLevel = attr.ib(default="2")
-    PreRender = attr.ib(default="")
-    PreFrame = attr.ib(default="")
-    PostFrame = attr.ib(default="")
-    PostRender = attr.ib(default="")
-    RestartDelegate = attr.ib(default="")
-    Version = attr.ib(default="")
+    Renderer: str = field(default=None)
+    RenderSettings: str = field(default="/Render/rendersettings")
+    Purpose: str = field(default="geometry,render")
+    Complexity: str = field(default="veryhigh")
+    Snapshot: int = field(default=-1)
+    LogLevel: str = field(default="2")
+    PreRender: str = field(default="")
+    PreFrame: str = field(default="")
+    PostFrame: str = field(default="")
+    PostRender: str = field(default="")
+    RestartDelegate: str = field(default="")
+    Version: str = field(default="")
 
 
 class PreviewHoudiniSubmitDeadline(
@@ -96,7 +91,7 @@ class PreviewHoudiniSubmitDeadline(
 
     """
 
-    label = "Submit Preview Render to Deadline"
+    label = "r42 Submit Preview Render to Deadline"
     order = pyblish.api.IntegratorOrder + 0.24
     hosts = ["houdini"]
     families = ["redshift_rop",
@@ -106,9 +101,8 @@ class PreviewHoudiniSubmitDeadline(
                 "vray_rop"]
     targets = ["local"]
     settings_category = "deadline"
-    use_published = True
 
-    def get_job_info(self, dependency_job_ids=None):
+    def get_job_info(self, dependency_job_ids=None, job_info=None):
 
         instance = self._instance
         context = instance.context
@@ -137,131 +131,66 @@ class PreviewHoudiniSubmitDeadline(
             plugin = "Houdini"
             if split_render_job:
                 job_type = "[EXPORT IFD]"
-
-        job_info = DeadlineJobInfo(Plugin=plugin)
+        job_info.Plugin = plugin
 
         filepath = context.data["currentFile"]
         filename = os.path.basename(filepath)
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-        job_info.Name = "{} - {} {} [{}x{}](Preview-Frames)".format(filename, instance.name, job_type, width, height)
+        # ========================== R42 Custom ======================================
+        height, width = r42.get_height_width(instance)
+        if plugin == "Houdini":
+            job_info.Name = "{} - {} {} [{}x{}]".format(filename, instance.name, job_type, width, height)
+        else:
+            job_info.Name = "{} - {} {} [{}x{}](Preview-Frames)".format(filename, instance.name, job_type, width, height)
+        # ========================== R42 Custom ======================================
         job_info.BatchName = filename
-
-        job_info.UserName = context.data.get(
-            "deadlineUser", getpass.getuser())
 
         if is_in_tests():
             job_info.BatchName += datetime.now().strftime("%d%m%Y%H%M%S")
 
         # Deadline requires integers in frame range
+        # ========================== R42 Custom ======================================
         start = instance.data["frameStartHandle"]
         end = instance.data["frameEndHandle"]
-        skip = instance.data["preview_frame_skip"]
-        '''
-        frames = "{start}-{end}x{step}".format(
-            start=int(start),
-            end=int(end),
-            step=int(instance.data["byFrameStep"]),
-        )
-        '''
-        if job_type == "[RENDER]":
+        # Get custom preview frames data
+        r42_preview_settings = r42.get_r42_preview_settings(instance)
+        skip = r42_preview_settings["preview_frame_skip"]
+        if plugin == "Houdini":
+            frames = "{start}-{end}x{skip}".format(
+                start=int(start),
+                end=int(end),
+                skip=int(instance.data["byFrameStep"]),
+            )
+        else:
             frames = "{start}-{end}x{skip}".format(
                 start=int(start),
                 end=int(end),
                 skip=int(skip),
             )
-        else:
-            frames = "{start}-{end}x{step}".format(
-                start=int(start),
-                end=int(end),
-                step=int(instance.data["byFrameStep"]),
-            )
-
+        # ========================== R42 Custom ======================================
         job_info.Frames = frames
 
         # Make sure we make job frame dependent so render tasks pick up a soon
         # as export tasks are done
         if split_render_job and not is_export_job:
-            job_info.IsFrameDependent = True
+            job_info.IsFrameDependent = bool(instance.data.get(
+                "splitRenderFrameDependent", True))
 
-        self.log.debug("====================================")
-        self.log.debug(f"Job Info Frame Dependent = {job_info.IsFrameDependent}")
-        self.log.debug("====================================")
+        # ========================== R42 Custom ======================================
+        houdini_submit_settings = r42.get_houdini_submit_settings(instance)
+        job_settings = r42.get_job_settings(instance)
 
-        job_info.Pool = instance.data.get("primaryPool")
-        job_info.SecondaryPool = instance.data.get("secondaryPool")
-
-        '''
         if split_render_job and is_export_job:
-            job_info.Priority = attribute_values.get(
-                "export_priority", self.export_priority
-            )
-            job_info.ChunkSize = attribute_values.get(
-                "export_chunk", self.export_chunk_size
-            )
-            job_info.Group = self.export_group
+            job_info.Priority = houdini_submit_settings["export_priority"]
+            job_info.ChunkSize = houdini_submit_settings["export_chunk"]
+            job_info.Group = houdini_submit_settings["export_group"]
+
         else:
-            job_info.Priority = attribute_values.get(
-                "priority", self.priority
-            )
-            job_info.ChunkSize = attribute_values.get(
-                "chunk", self.chunk_size
-            )
-        '''
-        if split_render_job and is_export_job:
-            job_info.Priority = instance.data["export_priority"]
-            job_info.ChunkSize = instance.data["export_chunk_size"]
-            job_info.Group = instance.data["export_group"]
-        else:
-            job_info.Priority = instance.data["preview_priority"]
-            job_info.ChunkSize = instance.data["chunk_size"]
-            job_info.Group = instance.data["group"]
+            job_info.Priority = r42_preview_settings["preview_priority"]
+            job_info.Group = job_settings["group"]
+            job_info.InitialStatus = r42_preview_settings["preview_initial_status"]
+        # ========================== R42 Custom ======================================
 
-        # Apply render globals, like e.g. data from collect machine list
-        render_globals = instance.data.get("renderGlobals", {})
-        if render_globals:
-            self.log.debug("Applying 'renderGlobals' to job info: %s",
-                           render_globals)
-            job_info.update(render_globals)
-
-        job_info.Comment = context.data.get("comment")
-
-        keys = [
-            "FTRACK_API_KEY",
-            "FTRACK_API_USER",
-            "FTRACK_SERVER",
-            "OPENPYPE_SG_USER",
-            "AYON_BUNDLE_NAME",
-            "AYON_DEFAULT_SETTINGS_VARIANT",
-            "AYON_PROJECT_NAME",
-            "AYON_FOLDER_PATH",
-            "AYON_TASK_NAME",
-            "AYON_WORKDIR",
-            "AYON_APP_NAME",
-            "AYON_LOG_NO_COLORS",
-            "AYON_IN_TESTS"
-        ]
-
-        environment = {
-            key: os.environ[key]
-            for key in keys
-            if key in os.environ
-        }
-
-        # TODO (antirotor): there should be better way to handle this.
-        #   see https://github.com/ynput/ayon-core/issues/876
-        usd_env = get_usd_pinning_envs(instance)
-        environment.update(usd_env)
-        keys += list(usd_env.keys())
-
-        for key in keys:
-            value = environment.get(key)
-            if value:
-                job_info.EnvironmentKeyValue[key] = value
-
-        # to recognize render jobs
-        job_info.add_render_job_env_var()
-
+        # TODO change to expectedFiles??
         for i, filepath in enumerate(instance.data["files"]):
             dirname = os.path.dirname(filepath)
             fname = os.path.basename(filepath)
@@ -270,7 +199,7 @@ class PreviewHoudiniSubmitDeadline(
 
         # Add dependencies if given
         if dependency_job_ids:
-            job_info.JobDependencies = ",".join(dependency_job_ids)
+            job_info.JobDependencies = dependency_job_ids
 
         return job_info
 
@@ -337,7 +266,7 @@ class PreviewHoudiniSubmitDeadline(
                 IgnoreInputs=True
             )
 
-        return attr.asdict(plugin_info)
+        return asdict(plugin_info)
 
     def process(self, instance):
         if not instance.data["farm"]:
@@ -345,12 +274,14 @@ class PreviewHoudiniSubmitDeadline(
                            "Skipping deadline submission.")
             return
 
-        # ------------------------------------------
-        use_preview_frames = instance.data["use_preview_frames"]
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+        use_preview_frames = r42_preview_data["use_preview_frames"]
         if not use_preview_frames:
             self.log.debug("Skipping Preview Houdini Job...")
             return
-        # ------------------------------------------
+        # ========================== R42 Custom ======================================
 
         super(PreviewHoudiniSubmitDeadline, self).process(instance)
 
@@ -397,8 +328,9 @@ class HoudiniSubmitDeadlineUsdRender(PreviewHoudiniSubmitDeadline):
     label = "Submit Render to Deadline (USD)"
     families = ["usdrender"]
 
-    # Do not use published workfile paths for USD Render ROP because the
-    # Export Job doesn't seem to occur using the published path either, so
-    # output paths then do not match the actual rendered paths
-    use_published = False
+    def from_published_scene(self, replace_in_path=True):
+        # Do not use published workfile paths for USD Render ROP because the
+        # Export Job doesn't seem to occur using the published path either, so
+        # output paths then do not match the actual rendered paths
+        return
 

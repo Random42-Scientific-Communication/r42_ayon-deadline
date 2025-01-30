@@ -17,6 +17,10 @@ import pyblish.api
 from ayon_max.api.lib_rendersettings import RenderSettings
 from ayon_deadline import abstract_submit_deadline
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
+
 
 @dataclass
 class MaxPluginInfo(object):
@@ -45,16 +49,9 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         # ========================== R42 Custom ======================================
         # Get custom preview frames data
-        r42_preview_data = instance.data["publish_attributes"]["CollectR42JobInfo"]
+        r42_preview_data = r42.get_r42_preview_settings(instance)
         use_preview_frames = r42_preview_data["use_preview_frames"]
-        self.log.debug("===============================================")
-        self.log.debug(f" <R42> use_preview_frames: {use_preview_frames}")
-        import pprint
-        data = pprint.pformat(instance.data)
-        self.log.debug(f" <R42> data: \n{data}\n")
-        self.log.debug("===============================================")
-        # ========================== R42 Custom ======================================
-        # ========================== R42 Custom ======================================
+
         # Deadline requires integers in frame range
         if not use_preview_frames:
             frames = "{start}-{end}".format(
@@ -62,7 +59,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
                 end=int(instance.data["frameEnd"])
             )
         else:
-            frames = self._get_non_preview_frames()
+            frames = r42.get_non_preview_frames(instance)
         job_info.Frames = frames
         # ========================== R42 Custom ======================================
 
@@ -74,10 +71,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         # ========================== R42 Custom ======================================
         # Get the preview submit job dependency
         if use_preview_frames:
-            job_info.JobDependencies = instance.data.get("previewDeadlineSubmissionJob")
-            self.log.debug("===============================================")
-            self.log.debug(f"instance.data.get('previewDeadlineSubmissionJob'): {instance.data.get('previewDeadlineSubmissionJob')}")
-            self.log.debug("===============================================")
+            job_info.JobDependencies = r42.get_r42_preview_job_id(instance)
         # ========================== R42 Custom ======================================
 
         return job_info
@@ -153,8 +147,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         plugin_data = {}
 
         # ========================== R42 Custom ======================================
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        height, width = r42.get_height_width(instance)
         job_info.Name = "%s [%sx%s]" % (
             job_info.Name, width, height)
         # ========================== R42 Custom ======================================
@@ -225,8 +218,7 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
         # ========================== R42 Custom ======================================
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
+        height, width = r42.get_height_width(instance)
         job_info.Name = "%s - %s - %s [%sx%s]" % (
             src_filename, instance.name, camera, width, height)
         # ========================== R42 Custom ======================================
@@ -337,26 +329,6 @@ class MaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             replace_in_path = False
         return replace_with_published_scene_path(
             instance, replace_in_path)
-
-    def _get_non_preview_frames(self):
-        instance = self._instance
-        start = int(instance.data["frameStart"])
-        end = int(instance.data["frameEnd"])
-        skip = int(instance.data['preview_frame_skip'])
-
-        preview_frames = []
-        rest_of_frames = []
-
-        for i in range(start, end + 1, skip):
-            preview_frames.append(i)
-
-        for i in range(start, end + 1):
-            rest_of_frames.append(i)
-
-        rest_of_frames = list(set(rest_of_frames) - set(preview_frames))
-        rest_of_frames.sort()
-        frame_str = ','.join([str(x) for x in rest_of_frames])
-        return frame_str
 
     @staticmethod
     def _iter_expected_files(exp):

@@ -137,7 +137,7 @@ class AbstractSubmitDeadline(
             # Assign job_id
             self.log.info("\nSTATE IS REST\n")
             job_id = self._instance.data["previewDeadlineSubmissionJob"]
-            self.job_info = self.get_job_info(dependency_job_ids=[job_id])
+            self.job_info = self.get_job_info(dependency_job_ids=[job_id], job_info=self.job_info)
             self.plugin_info = self.get_plugin_info(job_type="render")
 
             job_id = self.process_submission()
