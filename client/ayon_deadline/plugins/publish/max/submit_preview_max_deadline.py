@@ -1,7 +1,6 @@
 import os
-import getpass
 import copy
-import attr
+from dataclasses import dataclass, field, asdict
 
 from ayon_core.pipeline import (
     AYONPyblishPluginMixin
@@ -17,150 +16,57 @@ from ayon_max.api.lib import (
 import pyblish.api
 from ayon_max.api.lib_rendersettings import RenderSettings
 from ayon_deadline import abstract_submit_deadline
-from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
 
+# ========================== R42 Custom ======================================
+from ayon_deadline.plugins.publish import r42_custom as r42
+# ========================== R42 Custom ======================================
 
-@attr.s
+@dataclass
 class MaxPluginInfo(object):
-    SceneFile = attr.ib(default=None)   # Input
-    Version = attr.ib(default=None)  # Mandatory for Deadline
-    SaveFile = attr.ib(default=True)
-    IgnoreInputs = attr.ib(default=True)
+    SceneFile: str = field(default=None)   # Input
+    Version: str = field(default=None)  # Mandatory for Deadline
+    SaveFile: bool = field(default=True)
+    IgnoreInputs: bool = field(default=True)
 
 
 class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
                                AYONPyblishPluginMixin):
 
-    label = "Submit Preview Render to Deadline"
+    label = "R42 Submit Preview Render to Deadline"
     hosts = ["max"]
     families = ["maxrender"]
     targets = ["local"]
-    order = pyblish.api.IntegratorOrder + 0.24
     settings_category = "deadline"
-    jobInfo = {}
-    pluginInfo = {}
+    order = pyblish.api.IntegratorOrder + 0.24
 
-    # This part is being done in collect_R42_max_publish_attributes
-    '''
-    use_published = True
-    priority = 50
-    chunk_size = 1
-    group = None
-    use_preview_frames = False
-    preview_frame_skip = 2
-    initialStatus = "active"
-    '''
-
-    # This part is being done in collect_R42_max_publish_attributes
-    '''
-    @classmethod
-    def apply_settings(cls, project_settings):
-        settings = project_settings["deadline"]["publish"]["MaxSubmitDeadline"]  # noqa
-
-        # Take some defaults from settings
-        cls.use_published = settings.get("use_published",
-                                         cls.use_published)
-        cls.priority = settings.get("priority",
-                                    cls.priority)
-        cls.chuck_size = settings.get("chunk_size", cls.chunk_size)
-        cls.group = settings.get("group", cls.group)
-        cls.preview_frame_skip = settings.get("preview_frame_skip", cls.preview_frame_skip)
-        cls.use_preview_frames = settings.get("use_preview_frames", cls.use_preview_frames)
-        cls.initialStatus = settings.get("initialStatus", cls.initialStatus)
-    '''
-
-    # TODO: multiple camera instance, separate job infos
-    def get_job_info(self):
-        job_info = DeadlineJobInfo(Plugin="3dsmax")
-
-        # todo: test whether this works for existing production cases
-        #       where custom jobInfo was stored in the project settings
-        job_info.update(self.jobInfo)
+    def get_job_info(self, job_info=None):
 
         instance = self._instance
-        context = instance.context
-        # Always use the original work file name for the Job name even when
-        # rendering is done from the published Work File. The original work
-        # file name is clearer because it can also have subversion strings,
-        # etc. which are stripped for the published file.
+        job_info.Plugin = instance.data.get("plugin") or "3dsmax"
 
-        src_filepath = context.data["currentFile"]
-        src_filename = os.path.basename(src_filepath)
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-        job_info.Name = "%s - %s [%sx%s](Preview-Frames)" % (src_filename, instance.name, width, height)
-        job_info.BatchName = src_filename
-        job_info.Plugin = instance.data["plugin"]
-        job_info.UserName = context.data.get("deadlineUser", getpass.getuser())
-        job_info.EnableAutoTimeout = False
-        # Deadline requires integers in frame range
-        '''
-        frames = "{start}-{end}".format(
-            start=int(instance.data["frameStart"]),
-            end=int(instance.data["frameEnd"])
-        )
-        '''
+        job_info.EnableAutoTimeout = True
 
-        job_info.Pool = instance.data.get("primaryPool")
-        job_info.SecondaryPool = instance.data.get("secondaryPool")
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
 
-        preview_frame_skip = instance.data["preview_frame_skip"]
+        # Set Frame Range and Initial Status Here (Deadline requires integers in frame range)
+        preview_frame_skip = r42_preview_data["preview_frame_skip"]
         frames = "{start}-{end}x{skip}".format(
             start=int(instance.data["frameStart"]),
             end=int(instance.data["frameEnd"]),
             skip=int(preview_frame_skip)
         )
         job_info.Frames = frames
-        job_info.InitialStatus = instance.data["preview_initial_status"]
 
-        job_info.ChunkSize = instance.data["chunk_size"]
-        job_info.Comment = context.data.get("comment")
-        job_info.Priority = instance.data["preview_priority"]
-        job_info.Group = instance.data["group"]
-        job_info.LimitGroups = "redshift"
+        # Set Initial Status Here
+        job_info.InitialStatus = r42_preview_data["preview_initial_status"]
+        # ========================== R42 Custom ======================================
 
-        # Add options from RenderGlobals
-        render_globals = instance.data.get("renderGlobals", {})
-        job_info.update(render_globals)
-
-        keys = [
-            "FTRACK_API_KEY",
-            "FTRACK_API_USER",
-            "FTRACK_SERVER",
-            "OPENPYPE_SG_USER",
-            "AYON_BUNDLE_NAME",
-            "AYON_DEFAULT_SETTINGS_VARIANT",
-            "AYON_PROJECT_NAME",
-            "AYON_FOLDER_PATH",
-            "AYON_TASK_NAME",
-            "AYON_WORKDIR",
-            "AYON_APP_NAME",
-            "AYON_IN_TESTS",
-        ]
-
-        environment = {
-            key: os.environ[key]
-            for key in keys
-            if key in os.environ
-        }
-
-        for key in keys:
-            value = environment.get(key)
-            if not value:
-                continue
-            job_info.EnvironmentKeyValue[key] = value
-
-        # to recognize render jobs
-        job_info.add_render_job_env_var()
-        job_info.EnvironmentKeyValue["AYON_LOG_NO_COLORS"] = "1"
-
-        # Add list of expected files to job
-        # ---------------------------------
-        if not instance.data.get("multiCamera"):
-            exp = instance.data.get("expectedFiles")
-            for filepath in self._iter_expected_files(exp):
-                job_info.OutputDirectory += os.path.dirname(filepath)
-                job_info.OutputFilename += os.path.basename(filepath)
+        # do not add expected files for multiCamera
+        if instance.data.get("multiCamera"):
+            job_info.OutputDirectory.clear()
+            job_info.OutputFilename.clear()
 
         return job_info
 
@@ -174,22 +80,21 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             IgnoreInputs=True
         )
 
-        plugin_payload = attr.asdict(plugin_info)
-
-        # Patching with pluginInfo from settings
-        for key, value in self.pluginInfo.items():
-            plugin_payload[key] = value
+        plugin_payload = asdict(plugin_info)
 
         return plugin_payload
 
     def process_submission(self):
         instance = self._instance
-        use_preview_frames = instance.data["use_preview_frames"]
+        # ========================== R42 Custom ======================================
+        # Get custom preview frames data
+        r42_preview_data = r42.get_r42_preview_settings(instance)
+        use_preview_frames = r42_preview_data["use_preview_frames"]
 
         if not use_preview_frames:
             self.log.debug("Skipping Preview Max Job...")
             return
-
+        # ========================== R42 Custom ======================================
         filepath = instance.context.data["currentFile"]
 
         files = instance.data["expectedFiles"]
@@ -214,10 +119,9 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
             self.log.debug("Submitting jobs for multiple cameras..")
             payload = self._use_published_name_for_multiples(
                 payload_data, project_settings)
-
             job_infos, plugin_infos = payload
-
             for job_info, plugin_info in zip(job_infos, plugin_infos):
+
                 self.submit(
                     self.assemble_payload(job_info, plugin_info),
                     auth=auth,
@@ -226,6 +130,7 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         else:
             payload = self._use_published_name(payload_data, project_settings)
             job_info, plugin_info = payload
+
             self.submit(
                 self.assemble_payload(job_info, plugin_info),
                 auth=auth,
@@ -242,9 +147,15 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         instance = self._instance
         job_info = copy.deepcopy(self.job_info)
-
         plugin_info = copy.deepcopy(self.plugin_info)
         plugin_data = {}
+
+        # ========================== R42 Custom ======================================
+        # Modify name of job as seen on deadline
+        height, width = r42.get_height_width(instance)
+        job_info.Name = "%s [%sx%s](Preview-Frames)" % (
+            job_info.Name, width, height)
+        # ========================== R42 Custom ======================================
 
         multipass = get_multipass_setting(project_settings)
         if multipass:
@@ -311,10 +222,12 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
 
         src_filepath = context.data["currentFile"]
         src_filename = os.path.basename(src_filepath)
-        height = instance.data["taskEntity"]["attrib"]["resolutionHeight"]
-        width = instance.data["taskEntity"]["attrib"]["resolutionWidth"]
-        job_info.Name = "%s - %s - %s [%sx%s]" % (
+        # ========================== R42 Custom ======================================
+        # Modify name of job as seen on deadline
+        height, width = r42.get_height_width(instance)
+        job_info.Name = "%s - %s - %s [%sx%s](Preview-Frames)" % (
             src_filename, instance.name, camera, width, height)
+        # ========================== R42 Custom ======================================
         for filepath in self._iter_expected_files(exp):
             if camera not in filepath:
                 continue
@@ -431,52 +344,3 @@ class PreviewMaxSubmitDeadline(abstract_submit_deadline.AbstractSubmitDeadline,
         else:
             for file in exp:
                 yield file
-
-    # This part is being done in collect_R42_max_publish_attributes
-    '''
-    @classmethod
-    def get_attribute_defs(cls):
-        defs = super(PreviewMaxSubmitDeadline, cls).get_attribute_defs()
-        
-        defs.extend([
-            BoolDef("use_published",
-                    default=cls.use_published,
-                    label="Use Published Scene"),
-
-            NumberDef("chunkSize",
-                      minimum=1,
-                      maximum=50,
-                      decimals=0,
-                      default=cls.chunk_size,
-                      label="Frame Per Task"),
-
-            TextDef("group",
-                    default=cls.group,
-                    label="Group Name"),
-
-            BoolDef("use_preview_frames",
-                    default=cls.use_preview_frames,
-                    label="Use Preview Frames"),
-
-            NumberDef("preview_priority",
-                      minimum=1,
-                      maximum=250,
-                      decimals=0,
-                      default=cls.priority,
-                      label="Preview Priority"),
-
-            NumberDef("preview_frame_skip",
-                      minimum=1,
-                      maximum=50,
-                      decimals=0,
-                      default=cls.preview_frame_skip,
-                      label="Preview Frame Skip"),
-
-            EnumDef("initialStatus",
-                    label="Preview Render Job State",
-                    items=["Active", "Suspended"],
-                    default=cls.initialStatus),
-        ])
-        
-        return defs
-    '''

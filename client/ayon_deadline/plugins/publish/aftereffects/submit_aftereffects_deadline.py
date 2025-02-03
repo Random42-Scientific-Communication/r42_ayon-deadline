@@ -1,30 +1,26 @@
 import os
-import attr
-import getpass
 import pyblish.api
-from datetime import datetime
+from dataclasses import dataclass, field, asdict
 
 from ayon_core.lib import (
     env_value_to_bool,
     collect_frames,
-    is_in_tests,
 )
 from ayon_deadline import abstract_submit_deadline
-from ayon_deadline.abstract_submit_deadline import DeadlineJobInfo
 
 
-@attr.s
+@dataclass
 class DeadlinePluginInfo():
-    Comp = attr.ib(default=None)
-    SceneFile = attr.ib(default=None)
-    OutputFilePath = attr.ib(default=None)
-    Output = attr.ib(default=None)
-    StartupDirectory = attr.ib(default=None)
-    Arguments = attr.ib(default=None)
-    ProjectPath = attr.ib(default=None)
-    AWSAssetFile0 = attr.ib(default=None)
-    Version = attr.ib(default=None)
-    MultiProcess = attr.ib(default=None)
+    Comp: str = field(default=None)
+    SceneFile: str = field(default=None)
+    OutputFilePath: str = field(default=None)
+    Output: str = field(default=None)
+    StartupDirectory: str = field(default=None)
+    Arguments: str = field(default=None)
+    ProjectPath: str = field(default=None)
+    AWSAssetFile0: str = field(default=None)
+    Version: str = field(default=None)
+    MultiProcess: str = field(default=None)
 
 
 class AfterEffectsSubmitDeadline(
@@ -39,72 +35,18 @@ class AfterEffectsSubmitDeadline(
     targets = ["local"]
     settings_category = "deadline"
 
-    priority = 50
-    chunk_size = 1000000
-    group = None
-    department = None
-    multiprocess = True
+    def get_job_info(self, job_info=None):
+        job_info.Plugin = "AfterEffects"
 
-    def get_job_info(self):
-        dln_job_info = DeadlineJobInfo(Plugin="AfterEffects")
+        # already collected explicit values for rendered Frames
+        if not job_info.Frames:
+            # Deadline requires integers in frame range
+            frame_range = "{}-{}".format(
+                int(round(self._instance.data["frameStart"])),
+                int(round(self._instance.data["frameEnd"])))
+            job_info.Frames = frame_range
 
-        context = self._instance.context
-
-        batch_name = os.path.basename(self._instance.data["source"])
-        if is_in_tests():
-            batch_name += datetime.now().strftime("%d%m%Y%H%M%S")
-        dln_job_info.Name = self._instance.data["name"]
-        dln_job_info.BatchName = batch_name
-        dln_job_info.Plugin = "AfterEffects"
-        dln_job_info.UserName = context.data.get(
-            "deadlineUser", getpass.getuser())
-        # Deadline requires integers in frame range
-        frame_range = "{}-{}".format(
-            int(round(self._instance.data["frameStart"])),
-            int(round(self._instance.data["frameEnd"])))
-        dln_job_info.Frames = frame_range
-
-        dln_job_info.Priority = self.priority
-        dln_job_info.Pool = self._instance.data.get("primaryPool")
-        dln_job_info.SecondaryPool = self._instance.data.get("secondaryPool")
-        dln_job_info.Group = self.group
-        dln_job_info.Department = self.department
-        dln_job_info.ChunkSize = self.chunk_size
-        dln_job_info.OutputFilename += \
-            os.path.basename(self._instance.data["expectedFiles"][0])
-        dln_job_info.OutputDirectory += \
-            os.path.dirname(self._instance.data["expectedFiles"][0])
-        dln_job_info.JobDelay = "00:00:00"
-
-        keys = [
-            "FTRACK_API_KEY",
-            "FTRACK_API_USER",
-            "FTRACK_SERVER",
-            "AYON_BUNDLE_NAME",
-            "AYON_DEFAULT_SETTINGS_VARIANT",
-            "AYON_PROJECT_NAME",
-            "AYON_FOLDER_PATH",
-            "AYON_TASK_NAME",
-            "AYON_WORKDIR",
-            "AYON_APP_NAME",
-            "AYON_LOG_NO_COLORS",
-            "AYON_IN_TESTS"
-        ]
-
-        environment = {
-            key: os.environ[key]
-            for key in keys
-            if key in os.environ
-        }
-        for key in keys:
-            value = environment.get(key)
-            if value:
-                dln_job_info.EnvironmentKeyValue[key] = value
-
-        # to recognize render jobs
-        dln_job_info.add_render_job_env_var()
-
-        return dln_job_info
+        return job_info
 
     def get_plugin_info(self):
         deadline_plugin_info = DeadlinePluginInfo()
@@ -131,7 +73,7 @@ class AfterEffectsSubmitDeadline(
         deadline_plugin_info.SceneFile = self.scene_path
         deadline_plugin_info.Output = render_path.replace("\\", "/")
 
-        return attr.asdict(deadline_plugin_info)
+        return asdict(deadline_plugin_info)
 
     def from_published_scene(self):
         """ Do not overwrite expected files.
