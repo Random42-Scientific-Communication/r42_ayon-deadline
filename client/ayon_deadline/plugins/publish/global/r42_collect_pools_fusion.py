@@ -75,6 +75,7 @@ class CollectDeadlinePools(pyblish.api.InstancePlugin,
         #                                                      self.log)
         # secondary_pool_names = ["-"] + pool_names
 
+        '''
         return [
             TextDef("primaryPool",
                     label="Primary Pool",
@@ -87,3 +88,5 @@ class CollectDeadlinePools(pyblish.api.InstancePlugin,
                     tooltip="Deadline secondary pool, "
                             "applicable for farm rendering")
         ]
+        '''
+

@@ -172,8 +172,8 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
 
         # ========================== R42 Custom ======================================
         # Get custom preview frames data
-        r42_preview_data = r42.get_r42_preview_settings(instance)
         try:
+            r42_preview_data = r42.get_r42_preview_settings(instance)
             use_preview_frames = r42_preview_data["use_preview_frames"]
         except KeyError:
             use_preview_frames = False
@@ -205,10 +205,13 @@ class ProcessSubmittedJobOnFarm(pyblish.api.InstancePlugin,
         # ========================== R42 Custom ======================================
         # initial_status = instance_settings.get("publishJobState", "Active")
 
-        # Get custom preview frames data
-        r42_preview_data = r42.get_r42_preview_settings(instance)
-        # Set Initial Status Here
-        initial_status = r42_preview_data["initial_status"]
+        try:
+            # Get custom preview frames data
+            r42_preview_data = r42.get_r42_preview_settings(instance)
+            # Set Initial Status Here
+            initial_status = r42_preview_data["initial_status"]
+        except KeyError:
+            initial_status = instance_settings.get("publishJobState", "Active")
         # ========================== R42 Custom ======================================
 
         batch_name = self._get_batch_name(instance, render_job)
